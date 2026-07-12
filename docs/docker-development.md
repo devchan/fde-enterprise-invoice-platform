@@ -1,0 +1,124 @@
+# Docker Development
+
+The project is dockerized for local development. Use Docker Compose as the primary runtime instead of installing backend dependencies on the host.
+
+## Services
+
+Compose starts:
+
+- `backend`: FastAPI application on host port `8010` by default
+- `worker`: background invoice processing worker
+- `postgres`: PostgreSQL 16 on host port `55432` by default
+- `redis`: Redis 7 on host port `56380` by default
+
+The backend runs Alembic migrations on startup when `RUN_MIGRATIONS_ON_START=true`.
+
+## Start
+
+```bash
+docker compose up -d --build
+```
+
+Health check:
+
+```bash
+docker compose exec -T backend curl -fsS http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+## Run Tests
+
+```bash
+docker compose exec -T backend python -m pytest -q
+```
+
+## Run Migrations Manually
+
+```bash
+docker compose exec -T backend alembic upgrade head
+```
+
+## OpenAI Extraction
+
+By default, Docker runs without `OPENAI_API_KEY` and the worker uses the deterministic development extractor. To exercise the production OpenAI extractor, export the provider settings before starting Compose:
+
+```bash
+OPENAI_API_KEY=sk-... \
+OPENAI_EXTRACTION_MODEL=gpt-4.1 \
+OPENAI_INPUT_COST_PER_MILLION_TOKENS=0 \
+OPENAI_OUTPUT_COST_PER_MILLION_TOKENS=0 \
+docker compose up -d --build
+```
+
+Set the cost values to the current pricing for the selected model when you want estimated extraction cost persisted with each invoice extraction.
+
+## Logs
+
+```bash
+docker compose logs -f backend
+```
+
+Worker logs:
+
+```bash
+docker compose logs -f worker
+```
+
+## Stop
+
+```bash
+docker compose down
+```
+
+To remove database and uploaded-file volumes:
+
+```bash
+docker compose down -v
+```
+
+## Ports
+
+Host defaults:
+
+- API: `8010`
+- PostgreSQL: `55432`
+- Redis: `56380`
+
+Override ports:
+
+```bash
+BACKEND_PORT=8011 POSTGRES_PORT=55433 REDIS_PORT=56381 docker compose up -d
+```
+
+## Local File Storage
+
+Uploaded files are stored in the Docker volume `invoice_storage` at `/app/.local-storage` inside the backend container. This is the development storage adapter. The same API can use private S3-compatible object storage by setting `OBJECT_STORAGE_BACKEND=s3` plus the bucket, region, endpoint, and credentials.
+
+## Container User and Volume Ownership
+
+The backend and frontend images are multi-stage and run as a **non-root** user (backend `app`, uid `10001`; frontend `nginx`, uid `101`). Fresh environments work automatically: the image creates `/app/.local-storage` owned by the `app` user, so a newly created `invoice_storage` volume inherits writable ownership.
+
+### One-time migration for pre-existing environments
+
+If you built the stack with an **older root-based backend image**, the existing `invoice_storage` volume is owned by `root` and the non-root process cannot write to it. Local invoice uploads then fail with a permission error (`500`), and the `test_security_api.py` upload/download tests fail. Production is unaffected because it uses the S3 storage backend, not local storage.
+
+Re-initialize the volume once so it is recreated with the correct ownership from the new image. This deletes only ephemeral local development upload scratch data — it does not touch the database:
+
+```bash
+docker compose stop backend worker
+docker volume rm fde-enterprise-invoice-platform_invoice_storage
+docker compose up -d backend worker
+```
+
+After recreating the volume, the full backend suite passes inside the non-root container:
+
+```bash
+docker compose exec -T backend python -m pytest -q
+```
+
+> The volume name is the Compose project prefix (the repository directory name) plus `_invoice_storage`. Confirm the exact name with `docker volume ls | grep invoice_storage`.

@@ -1,0 +1,134 @@
+erDiagram
+    %% Target-state model. Current implementation does not yet include AUDIT_LOGS, PROCESSING_JOBS, or PROMPT_VERSIONS.
+    ORGANIZATIONS ||--o{ USERS : has
+    ORGANIZATIONS ||--o{ SUPPLIERS : owns
+    ORGANIZATIONS ||--o{ INVOICES : owns
+    USERS ||--o{ INVOICES : uploads
+    USERS ||--o{ INVOICE_REVIEWS : reviews
+    USERS ||--o{ AUDIT_LOGS : performs
+    SUPPLIERS ||--o{ INVOICES : issues
+    INVOICES ||--o{ INVOICE_FILES : has
+    INVOICES ||--o{ INVOICE_LINE_ITEMS : contains
+    INVOICES ||--o{ INVOICE_EXTRACTIONS : has
+    INVOICES ||--o{ INVOICE_VALIDATION_RESULTS : has
+    INVOICES ||--o{ INVOICE_REVIEWS : has
+    INVOICES ||--o{ PROCESSING_JOBS : has
+    PROMPT_VERSIONS ||--o{ INVOICE_EXTRACTIONS : used_by
+
+    ORGANIZATIONS {
+        uuid id
+        string name
+        datetime created_at
+    }
+
+    USERS {
+        uuid id
+        uuid organization_id
+        string email
+        string role
+        datetime created_at
+    }
+
+    SUPPLIERS {
+        uuid id
+        uuid organization_id
+        string name
+        string tax_id
+        string bank_account_hash
+        datetime created_at
+    }
+
+    INVOICES {
+        uuid id
+        uuid organization_id
+        uuid supplier_id
+        uuid uploaded_by
+        string invoice_number
+        date invoice_date
+        decimal total_amount
+        string currency
+        string status
+        string file_checksum
+        datetime created_at
+    }
+
+    INVOICE_FILES {
+        uuid id
+        uuid invoice_id
+        string storage_key
+        string mime_type
+        integer file_size
+        datetime created_at
+    }
+
+    INVOICE_LINE_ITEMS {
+        uuid id
+        uuid invoice_id
+        string description
+        decimal quantity
+        decimal unit_price
+        decimal line_total
+    }
+
+    INVOICE_EXTRACTIONS {
+        uuid id
+        uuid invoice_id
+        uuid prompt_version_id
+        string model_name
+        json extracted_payload
+        decimal confidence_score
+        integer input_tokens
+        integer output_tokens
+        decimal estimated_cost
+        datetime created_at
+    }
+
+    INVOICE_VALIDATION_RESULTS {
+        uuid id
+        uuid invoice_id
+        string rule_code
+        string severity
+        string message
+        boolean passed
+        datetime created_at
+    }
+
+    INVOICE_REVIEWS {
+        uuid id
+        uuid invoice_id
+        uuid reviewer_id
+        string decision
+        string notes
+        json corrected_fields
+        datetime created_at
+    }
+
+    AUDIT_LOGS {
+        uuid id
+        uuid organization_id
+        uuid actor_user_id
+        string entity_type
+        uuid entity_id
+        string action
+        json metadata
+        datetime created_at
+    }
+
+    PROCESSING_JOBS {
+        uuid id
+        uuid invoice_id
+        string job_type
+        string status
+        integer attempts
+        string last_error
+        datetime created_at
+        datetime completed_at
+    }
+
+    PROMPT_VERSIONS {
+        uuid id
+        string name
+        string version
+        text prompt_template
+        datetime created_at
+    }

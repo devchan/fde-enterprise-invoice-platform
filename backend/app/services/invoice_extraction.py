@@ -1,0 +1,336 @@
+import base64
+import json
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from app.core.config import settings
+from app.services.invoice_validation import (
+    InvoiceLineItemInput,
+    InvoiceValidationInput,
+    next_status_after_validation,
+    validate_invoice,
+)
+
+PROMPT_NAME = "invoice_extraction"
+PROMPT_VERSION = "2026-07-10.v1"
+PROMPT_TEMPLATE = """Extract structured invoice fields from the invoice document.
+Return only JSON that matches the configured schema. If a field is unknown, use null.
+"""
+
+
+class ExtractedInvoiceLineItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    description: str = Field(min_length=1)
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    line_total: Decimal | None = None
+
+
+class ExtractedInvoicePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    invoice_number: str | None = None
+    supplier_name: str | None = None
+    invoice_date: str | None = None
+    total_amount: Decimal | None = Field(default=None, ge=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    confidence_score: Decimal = Field(ge=0, le=1)
+    line_items: list[ExtractedInvoiceLineItem] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ExtractionUsage:
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_cost: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class ExtractionResult:
+    payload: ExtractedInvoicePayload
+    model_name: str
+    usage: ExtractionUsage
+
+
+class ExtractionError(RuntimeError):
+    pass
+
+
+class TransientExtractionError(ExtractionError):
+    pass
+
+
+class InvalidExtractionResponseError(ExtractionError):
+    pass
+
+
+class DevelopmentInvoiceExtractor:
+    model_name = "development-extractor"
+
+    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+        payload = ExtractedInvoicePayload(
+            invoice_number=invoice.invoice_number,
+            total_amount=invoice.total_amount,
+            currency=invoice.currency,
+            confidence_score=Decimal("0.8000"),
+            line_items=[
+                ExtractedInvoiceLineItem(
+                    description="Extracted invoice total",
+                    quantity=Decimal("1"),
+                    unit_price=invoice.total_amount,
+                    line_total=invoice.total_amount,
+                )
+            ]
+            if invoice.total_amount is not None
+            else [],
+        )
+        return ExtractionResult(payload=payload, model_name=self.model_name, usage=ExtractionUsage())
+
+
+class OpenAIInvoiceExtractor:
+    def __init__(self, *, api_key: str, model_name: str) -> None:
+        self.api_key = api_key
+        self.model_name = model_name
+
+    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+        try:
+            from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
+        except ImportError as exc:
+            raise ExtractionError("OpenAI SDK is not installed.") from exc
+
+        client = OpenAI(api_key=self.api_key)
+        mime_type = mime_type or "application/pdf"
+        try:
+            response = client.responses.create(
+                model=self.model_name,
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    f"{PROMPT_TEMPLATE}\n"
+                                    f"Known invoice number: {invoice.invoice_number}\n"
+                                    f"Known amount: {invoice.total_amount}\n"
+                                    f"Known currency: {invoice.currency}"
+                                ),
+                            },
+                            {
+                                "type": "input_file",
+                                "filename": _invoice_filename(invoice_id=invoice.id, mime_type=mime_type),
+                                "file_data": _file_data_url(file_bytes=file_bytes, mime_type=mime_type),
+                            },
+                        ],
+                    }
+                ],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "invoice_extraction",
+                        "description": "Structured fields extracted from an invoice document.",
+                        "schema": extraction_json_schema(),
+                        "strict": True,
+                    }
+                },
+            )
+        except (APITimeoutError, APIConnectionError, RateLimitError) as exc:
+            raise TransientExtractionError("OpenAI extraction failed due to a transient provider error.") from exc
+        except Exception as exc:
+            raise ExtractionError("OpenAI extraction failed.") from exc
+
+        raw_text = _response_output_text(response)
+        try:
+            raw_payload = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise InvalidExtractionResponseError("OpenAI extraction returned invalid JSON.") from exc
+
+        return ExtractionResult(
+            payload=parse_extraction_payload(raw_payload),
+            model_name=self.model_name,
+            usage=_response_usage(response),
+        )
+
+
+def build_invoice_extractor():
+    if settings.openai_api_key:
+        return OpenAIInvoiceExtractor(
+            api_key=settings.openai_api_key,
+            model_name=settings.openai_extraction_model,
+        )
+
+    return DevelopmentInvoiceExtractor()
+
+
+def extraction_json_schema() -> dict[str, Any]:
+    return ExtractedInvoicePayload.model_json_schema()
+
+
+def get_or_create_prompt_version(db):
+    from sqlalchemy import select
+
+    from app.models.prompt import PromptVersion
+
+    prompt_version = db.scalar(
+        select(PromptVersion).where(
+            PromptVersion.name == PROMPT_NAME,
+            PromptVersion.version == PROMPT_VERSION,
+        )
+    )
+    if prompt_version is not None:
+        return prompt_version
+
+    prompt_version = PromptVersion(
+        name=PROMPT_NAME,
+        version=PROMPT_VERSION,
+        prompt_template=PROMPT_TEMPLATE,
+        json_schema=extraction_json_schema(),
+        is_active=True,
+    )
+    db.add(prompt_version)
+    db.flush()
+    return prompt_version
+
+
+def persist_extraction_result(
+    db,
+    *,
+    invoice,
+    result: ExtractionResult,
+):
+    from app.models.invoice import (
+        InvoiceExtraction,
+        InvoiceLineItem,
+    )
+    from app.models.invoice import (
+        InvoiceValidationResult as InvoiceValidationResultModel,
+    )
+
+    prompt_version = get_or_create_prompt_version(db)
+    payload = result.payload.model_dump(mode="json")
+
+    extraction = InvoiceExtraction(
+        invoice_id=invoice.id,
+        prompt_version_id=prompt_version.id,
+        model_name=result.model_name,
+        prompt_version=prompt_version.version,
+        extracted_payload=payload,
+        confidence_score=result.payload.confidence_score,
+        input_tokens=result.usage.input_tokens,
+        output_tokens=result.usage.output_tokens,
+        estimated_cost=result.usage.estimated_cost,
+    )
+    db.add(extraction)
+
+    for item in result.payload.line_items:
+        db.add(
+            InvoiceLineItem(
+                invoice_id=invoice.id,
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                line_total=item.line_total,
+            )
+        )
+
+    validation_results = validate_invoice(
+        InvoiceValidationInput(
+            invoice_number=result.payload.invoice_number or invoice.invoice_number,
+            supplier_found=invoice.supplier_id is not None,
+            total_amount=result.payload.total_amount,
+            extracted_confidence=result.payload.confidence_score,
+            line_items=tuple(
+                InvoiceLineItemInput(
+                    description=item.description,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    line_total=item.line_total,
+                )
+                for item in result.payload.line_items
+            ),
+        )
+    )
+    for validation_result in validation_results:
+        db.add(
+            InvoiceValidationResultModel(
+                invoice_id=invoice.id,
+                rule_code=validation_result.rule_code,
+                severity=validation_result.severity,
+                message=validation_result.message,
+                passed=validation_result.passed,
+            )
+        )
+
+    invoice.total_amount = result.payload.total_amount or invoice.total_amount
+    invoice.currency = result.payload.currency.upper()
+    invoice.invoice_number = result.payload.invoice_number or invoice.invoice_number
+    invoice.status = next_status_after_validation(validation_results).value
+
+    return extraction
+
+
+def parse_extraction_payload(raw_payload: dict[str, Any]) -> ExtractedInvoicePayload:
+    try:
+        return ExtractedInvoicePayload.model_validate(raw_payload)
+    except ValidationError as exc:
+        raise InvalidExtractionResponseError("Invoice extraction response did not match the required schema.") from exc
+
+
+def _response_output_text(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return output_text
+
+    output_items = getattr(response, "output", None) or []
+    for item in output_items:
+        content_items = getattr(item, "content", None) or []
+        for content in content_items:
+            text = getattr(content, "text", None)
+            if text:
+                return text
+
+    raise InvalidExtractionResponseError("OpenAI extraction response did not include output text.")
+
+
+def _response_usage(response: Any) -> ExtractionUsage:
+    usage = getattr(response, "usage", None)
+    input_tokens = getattr(usage, "input_tokens", None) if usage else None
+    output_tokens = getattr(usage, "output_tokens", None) if usage else None
+    return ExtractionUsage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost=_estimate_cost(input_tokens=input_tokens, output_tokens=output_tokens),
+    )
+
+
+def _file_data_url(*, file_bytes: bytes, mime_type: str) -> str:
+    encoded = base64.b64encode(file_bytes).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _invoice_filename(*, invoice_id: Any, mime_type: str) -> str:
+    extensions = {
+        "application/pdf": "pdf",
+        "image/jpeg": "jpg",
+        "image/png": "png",
+    }
+    return f"invoice-{invoice_id}.{extensions.get(mime_type, 'bin')}"
+
+
+def _estimate_cost(*, input_tokens: int | None, output_tokens: int | None) -> Decimal | None:
+    if input_tokens is None and output_tokens is None:
+        return None
+
+    input_cost = Decimal(settings.openai_input_cost_per_million_tokens)
+    output_cost = Decimal(settings.openai_output_cost_per_million_tokens)
+    total = Decimal("0")
+    if input_tokens is not None:
+        total += Decimal(input_tokens) * input_cost / Decimal("1000000")
+    if output_tokens is not None:
+        total += Decimal(output_tokens) * output_cost / Decimal("1000000")
+
+    return total.quantize(Decimal("0.000001"))

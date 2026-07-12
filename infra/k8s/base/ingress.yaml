@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: invoice-platform
+  labels:
+    app.kubernetes.io/part-of: invoice-platform
+  annotations:
+    # Assumes an ingress-nginx controller. Adjust class/annotations for your
+    # environment (e.g. TLS via cert-manager, external-dns, etc.).
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # API + health checks route to the backend service (port 8000).
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          # Everything else is served by the frontend (port 80 -> 8080).
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

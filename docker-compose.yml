@@ -1,0 +1,148 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_NAME: FDE Enterprise Invoice Platform
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DATABASE_URL: postgresql+psycopg://invoice_user:invoice_pass@postgres:5432/invoice_platform
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EXTRACTION_MODEL: ${OPENAI_EXTRACTION_MODEL:-gpt-4.1}
+      OPENAI_INPUT_COST_PER_MILLION_TOKENS: ${OPENAI_INPUT_COST_PER_MILLION_TOKENS:-0}
+      OPENAI_OUTPUT_COST_PER_MILLION_TOKENS: ${OPENAI_OUTPUT_COST_PER_MILLION_TOKENS:-0}
+      OBJECT_STORAGE_BUCKET: invoice-platform-local
+      OBJECT_STORAGE_BACKEND: ${OBJECT_STORAGE_BACKEND:-local}
+      OBJECT_STORAGE_LOCAL_PATH: /app/.local-storage
+      OBJECT_STORAGE_ENDPOINT_URL: ${OBJECT_STORAGE_ENDPOINT_URL:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      INVOICE_UPLOAD_MAX_BYTES: "10485760"
+      UPLOAD_RATE_LIMIT_ENABLED: ${UPLOAD_RATE_LIMIT_ENABLED:-true}
+      UPLOAD_RATE_LIMIT_REQUESTS: ${UPLOAD_RATE_LIMIT_REQUESTS:-20}
+      UPLOAD_RATE_LIMIT_WINDOW_SECONDS: ${UPLOAD_RATE_LIMIT_WINDOW_SECONDS:-60}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      INVOICE_FILE_DOWNLOAD_URL_TTL_SECONDS: ${INVOICE_FILE_DOWNLOAD_URL_TTL_SECONDS:-300}
+      JWT_SECRET: change-me-in-local-only
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-3600}
+      COOKIE_SECURE: "false"
+      RUN_MIGRATIONS_ON_START: "true"
+    ports:
+      - "${BACKEND_PORT:-8010}:8000"
+    volumes:
+      - invoice_storage:/app/.local-storage
+      - ./backend:/app/backend
+      - ./infra:/app/infra
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "/app/infra/docker/backend-entrypoint.sh"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--app-dir", "/app/backend"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_NAME: FDE Enterprise Invoice Platform
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DATABASE_URL: postgresql+psycopg://invoice_user:invoice_pass@postgres:5432/invoice_platform
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EXTRACTION_MODEL: ${OPENAI_EXTRACTION_MODEL:-gpt-4.1}
+      OPENAI_INPUT_COST_PER_MILLION_TOKENS: ${OPENAI_INPUT_COST_PER_MILLION_TOKENS:-0}
+      OPENAI_OUTPUT_COST_PER_MILLION_TOKENS: ${OPENAI_OUTPUT_COST_PER_MILLION_TOKENS:-0}
+      OBJECT_STORAGE_BUCKET: invoice-platform-local
+      OBJECT_STORAGE_BACKEND: ${OBJECT_STORAGE_BACKEND:-local}
+      OBJECT_STORAGE_LOCAL_PATH: /app/.local-storage
+      OBJECT_STORAGE_ENDPOINT_URL: ${OBJECT_STORAGE_ENDPOINT_URL:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      INVOICE_UPLOAD_MAX_BYTES: "10485760"
+      UPLOAD_RATE_LIMIT_ENABLED: ${UPLOAD_RATE_LIMIT_ENABLED:-true}
+      UPLOAD_RATE_LIMIT_REQUESTS: ${UPLOAD_RATE_LIMIT_REQUESTS:-20}
+      UPLOAD_RATE_LIMIT_WINDOW_SECONDS: ${UPLOAD_RATE_LIMIT_WINDOW_SECONDS:-60}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      INVOICE_FILE_DOWNLOAD_URL_TTL_SECONDS: ${INVOICE_FILE_DOWNLOAD_URL_TTL_SECONDS:-300}
+      JWT_SECRET: change-me-in-local-only
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-3600}
+      RUN_MIGRATIONS_ON_START: "false"
+      PROCESSING_QUEUE_NAME: ${PROCESSING_QUEUE_NAME:-invoice_processing_jobs}
+      WORKER_POLL_TIMEOUT_SECONDS: ${WORKER_POLL_TIMEOUT_SECONDS:-5}
+      WORKER_SLEEP_SECONDS: ${WORKER_SLEEP_SECONDS:-1}
+      PROCESSING_JOB_MAX_ATTEMPTS: ${PROCESSING_JOB_MAX_ATTEMPTS:-3}
+    volumes:
+      - invoice_storage:/app/.local-storage
+      - ./backend:/app/backend
+      - ./infra:/app/infra
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "-m", "app.worker"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: dev
+    working_dir: /app/frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8010}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["npm", "run", "dev"]
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: invoice_platform
+      POSTGRES_USER: invoice_user
+      POSTGRES_PASSWORD: invoice_pass
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice_user -d invoice_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_PORT:-56380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  invoice_storage:

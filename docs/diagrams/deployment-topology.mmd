@@ -1,0 +1,37 @@
+flowchart TB
+    %% Target-state deployment topology. Current docker-compose starts PostgreSQL and Redis only.
+    subgraph Internet
+        User[Users]
+    end
+
+    subgraph Cloud
+        LB[Load Balancer / HTTPS]
+
+        subgraph AppNetwork[Private Application Network]
+            Web[Web App Container]
+            API[FastAPI API Container]
+            Worker[Worker Container]
+            Redis[(Redis)]
+            Postgres[(PostgreSQL)]
+        end
+
+        Storage[(Private Object Storage)]
+        Secrets[Secrets Manager]
+        Monitoring[Monitoring Stack]
+    end
+
+    User --> LB
+    LB --> Web
+    Web --> API
+    API --> Postgres
+    API --> Redis
+    API --> Storage
+    API --> Secrets
+    Redis --> Worker
+    Worker --> Postgres
+    Worker --> Storage
+    Worker --> Secrets
+    API --> Monitoring
+    Worker --> Monitoring
+
+    Worker --> OpenAI[OpenAI API]

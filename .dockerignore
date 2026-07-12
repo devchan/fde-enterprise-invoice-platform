@@ -1,0 +1,16 @@
+.git
+.idea
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.local-storage
+postgres_data
+node_modules
+frontend/node_modules
+frontend/dist
+dist
+build
+*.log

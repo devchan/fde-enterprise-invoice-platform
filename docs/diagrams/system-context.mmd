@@ -1,0 +1,24 @@
+flowchart LR
+    %% Target-state system context. Current implementation is backend-first and does not yet include auth, worker, storage, or observability.
+    FinanceUser[Finance User] --> WebApp[Web App]
+    Reviewer[Reviewer] --> WebApp
+    Admin[Admin] --> WebApp
+    Auditor[Auditor] --> WebApp
+
+    WebApp --> API[FastAPI Backend]
+
+    API --> Auth[Authentication and RBAC]
+    API --> Database[(PostgreSQL)]
+    API --> Cache[(Redis)]
+    API --> ObjectStorage[(Private Object Storage)]
+    API --> Queue[Invoice Processing Queue]
+
+    Queue --> Worker[Background Worker]
+    Worker --> OpenAI[OpenAI API]
+    Worker --> Database
+    Worker --> ObjectStorage
+    Worker --> VectorStore[(pgvector)]
+
+    API --> Observability[Logs Metrics Traces]
+    Worker --> Observability
+    Observability --> Dashboards[Grafana Dashboards]

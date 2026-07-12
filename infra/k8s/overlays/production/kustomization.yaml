@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay: 3 backend replicas, production image tags.
+# The backend HPA (min 2 / max 6) manages backend scaling at runtime; the
+# replica count below is the initial desired state before the HPA takes over.
+namespace: invoice-platform-production
+
+resources:
+  - ../../base
+
+images:
+  - name: invoice-platform-backend
+    newTag: "1.0.0"
+  - name: invoice-platform-frontend
+    newTag: "1.0.0"
+
+replicas:
+  - name: backend
+    count: 3
+  - name: worker
+    count: 2
+  - name: frontend
+    count: 2
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: invoice-platform-config
+    patch: |-
+      - op: replace
+        path: /data/APP_ENV
+        value: production

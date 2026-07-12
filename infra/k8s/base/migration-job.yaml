@@ -1,0 +1,61 @@
+# One-time database migration Job. Run before/at each release rollout:
+#   kubectl apply -k infra/k8s/overlays/<env>
+# Because a Job's pod template is immutable, re-running for a new release
+# typically means deleting the old Job first (or generate a unique name per
+# release, e.g. via a CI-templated suffix).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-migrate
+  labels:
+    app.kubernetes.io/name: backend-migrate
+    app.kubernetes.io/part-of: invoice-platform
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 3
+  # Clean up finished migration Jobs after 1h.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend-migrate
+        app.kubernetes.io/part-of: invoice-platform
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: invoice-platform-backend:latest
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: invoice-platform-config
+            - secretRef:
+                name: invoice-platform-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

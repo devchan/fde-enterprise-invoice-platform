@@ -1,0 +1,18 @@
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "W"]
+
+[lint.isort]
+known-first-party = ["app"]
+
+[lint.per-file-ignores]
+# SQLAlchemy 2.0 declarative models reference related classes by string in
+# Mapped[...] annotations. Those classes are resolved through the mapper
+# registry at configuration time and are intentionally not imported at runtime
+# to avoid circular imports, so ruff's F821 (undefined name) is a false positive.
+"backend/app/models/*" = ["F821"]
+# Integration tests guard their imports behind importlib.util.find_spec, which
+# necessarily places imports after module-level dependency checks.
+"tests/*" = ["E402"]

@@ -1,0 +1,45 @@
+sequenceDiagram
+    %% Target-state flow. Current implementation exposes only metadata create and status-transition skeleton endpoints.
+    actor User as Finance User
+    participant Web as Web App
+    participant API as FastAPI Backend
+    participant Store as Object Storage
+    participant DB as PostgreSQL
+    participant Queue as Redis Queue
+    participant Worker as Worker
+    participant AI as OpenAI API
+    participant Reviewer as Reviewer
+
+    User->>Web: Upload invoice
+    Web->>API: POST /api/v1/invoices/upload
+    API->>API: Validate file and permissions
+    API->>Store: Store original file
+    API->>DB: Create invoice status uploaded
+    API->>DB: Create audit log invoice_uploaded
+    API->>Queue: Enqueue extraction job
+    API-->>Web: Return invoice ID and status
+
+    Queue->>Worker: Start extraction job
+    Worker->>DB: Mark invoice processing
+    Worker->>Store: Fetch invoice file
+    Worker->>AI: Extract structured invoice JSON
+    AI-->>Worker: Extraction result
+    Worker->>DB: Save extraction and prompt metadata
+    Worker->>DB: Run validation checks
+
+    alt Validation passes
+        Worker->>DB: Mark invoice validation_passed
+    else Review needed
+        Worker->>DB: Mark invoice review_required
+    else Processing fails
+        Worker->>DB: Mark invoice failed
+    end
+
+    Reviewer->>Web: Open review queue
+    Web->>API: GET /invoices/{id}
+    API-->>Web: Invoice, extraction, warnings
+    Reviewer->>Web: Correct fields and approve/reject
+    Web->>API: POST /invoices/{id}/review
+    API->>DB: Save corrections and decision
+    API->>DB: Create audit log review_decision
+    API-->>Web: Updated invoice status
