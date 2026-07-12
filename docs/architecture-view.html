@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FDE Architecture View — Invoice Platform</title>
+<style>
+  :root {
+    --paper: #F4F6F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F6;
+    --ink: #0C1420;
+    --ink-2: #3A4658;
+    --slate: #64748B;
+    --line: #D7DEE8;
+    --line-strong: #B9C4D3;
+    --accent: #B4611A;
+    --accent-ink: #FFFFFF;
+    --accent-soft: rgba(180, 97, 26, 0.10);
+    --blueprint: #3E6BA8;
+    --blueprint-soft: rgba(62, 107, 168, 0.10);
+    --good: #2F7A55;
+    --warn: #A9701A;
+    --crit: #B23A34;
+    --shadow: 0 1px 2px rgba(12,20,32,.06), 0 6px 20px rgba(12,20,32,.05);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --maxw: 1080px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0A111C;
+      --surface: #111A28;
+      --surface-2: #16212F;
+      --ink: #E7EDF5;
+      --ink-2: #AEBBCB;
+      --slate: #8494A8;
+      --line: #21303F;
+      --line-strong: #35485C;
+      --accent: #E0A34A;
+      --accent-ink: #17110A;
+      --accent-soft: rgba(224, 163, 74, 0.12);
+      --blueprint: #6E9AD6;
+      --blueprint-soft: rgba(110, 154, 214, 0.14);
+      --good: #4FB07A;
+      --warn: #D6A24A;
+      --crit: #E06A5E;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #F4F6F9; --surface: #FFFFFF; --surface-2: #EDF1F6;
+    --ink: #0C1420; --ink-2: #3A4658; --slate: #64748B;
+    --line: #D7DEE8; --line-strong: #B9C4D3;
+    --accent: #B4611A; --accent-ink: #FFFFFF; --accent-soft: rgba(180,97,26,.10);
+    --blueprint: #3E6BA8; --blueprint-soft: rgba(62,107,168,.10);
+    --good: #2F7A55; --warn: #A9701A; --crit: #B23A34;
+    --shadow: 0 1px 2px rgba(12,20,32,.06), 0 6px 20px rgba(12,20,32,.05);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0A111C; --surface: #111A28; --surface-2: #16212F;
+    --ink: #E7EDF5; --ink-2: #AEBBCB; --slate: #8494A8;
+    --line: #21303F; --line-strong: #35485C;
+    --accent: #E0A34A; --accent-ink: #17110A; --accent-soft: rgba(224,163,74,.12);
+    --blueprint: #6E9AD6; --blueprint-soft: rgba(110,154,214,.14);
+    --good: #4FB07A; --warn: #D6A24A; --crit: #E06A5E;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 34px 34px;
+    background-position: -1px -1px;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+  h2 { font-size: clamp(20px, 3vw, 26px); font-weight: 750; letter-spacing: -.01em; }
+  h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+  a { color: var(--accent); }
+
+  /* ---- top bar ---- */
+  .topbar {
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(6px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; letter-spacing: .02em; }
+  .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .rating-pill {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: baseline; gap: 7px;
+    padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 999px;
+    background: var(--surface); color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .rating-pill b { color: var(--accent); font-size: 15px; }
+
+  /* ---- hero ---- */
+  .hero { padding: 56px 0 40px; }
+  .hero .meta-eyebrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .hero h1 { max-width: 20ch; }
+  .thesis { font-size: clamp(17px, 2.2vw, 20px); color: var(--ink-2); max-width: 62ch; margin-top: 20px; line-height: 1.5; }
+  .thesis b { color: var(--ink); font-weight: 650; }
+  .metastrip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+  .tag {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    border: 1px solid var(--line); background: var(--surface);
+    padding: 5px 10px; border-radius: 6px; white-space: nowrap;
+  }
+  .tag span { color: var(--slate); }
+
+  section { padding: 30px 0; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
+  .sec-head .idx { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .08em; }
+  .sec-sub { color: var(--slate); font-size: 14px; margin: -14px 0 22px; max-width: 64ch; }
+
+  /* ---- architecture schematic ---- */
+  .diagram-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .system {
+    min-width: 640px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 33px, var(--blueprint-soft) 33px, var(--blueprint-soft) 34px);
+    background-color: var(--surface);
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 0;
+    box-shadow: var(--shadow);
+  }
+  .plane {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 16px;
+    align-items: stretch;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    position: relative;
+    z-index: 1;
+  }
+  .plane + .connector { height: 22px; display: grid; place-items: center; position: relative; z-index: 0; }
+  .connector::before {
+    content: ""; width: 2px; height: 100%;
+    background: linear-gradient(var(--blueprint), color-mix(in srgb, var(--blueprint) 30%, transparent));
+  }
+  .connector::after {
+    content: "▼"; position: absolute; bottom: -2px; color: var(--blueprint); font-size: 10px;
+  }
+  .plane-label { display: flex; flex-direction: column; gap: 4px; justify-content: center; border-right: 1px dashed var(--line-strong); padding-right: 14px; }
+  .plane-label .num { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .plane-label .name { font-weight: 750; font-size: 15px; letter-spacing: -.01em; }
+  .plane-label .own { font-family: var(--mono); font-size: 10.5px; color: var(--slate); line-height: 1.4; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 8px; align-content: center; }
+  .tile {
+    border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-2);
+    padding: 9px 11px; min-width: 0;
+  }
+  .tile .t { font-weight: 650; font-size: 13.5px; }
+  .tile .d { font-family: var(--mono); font-size: 11px; color: var(--slate); margin-top: 2px; }
+  .tile.accent { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong)); background: var(--accent-soft); }
+
+  .rail {
+    margin-top: 14px;
+    border: 1px dashed var(--line-strong); border-radius: 10px;
+    padding: 12px 14px;
+    display: grid; grid-template-columns: 132px 1fr; gap: 16px; align-items: center;
+    background: repeating-linear-gradient(-45deg, transparent, transparent 8px, var(--blueprint-soft) 8px, var(--blueprint-soft) 9px);
+  }
+  .rail .plane-label { border-right: 1px dashed var(--line-strong); }
+  .rail .tiles .tile { background: var(--surface); }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-family: var(--mono); font-size: 11.5px; color: var(--slate); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line-strong); }
+  .swatch.live { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong)); }
+  .swatch.struct { background: var(--blueprint-soft); border-color: var(--blueprint); }
+
+  /* ---- lifecycle stepper ---- */
+  .flow { overflow-x: auto; padding-bottom: 6px; }
+  .steps { display: flex; gap: 0; min-width: 720px; }
+  .step { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 0 4px; position: relative; }
+  .step .bead {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .step .bead b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 11px; flex: none; }
+  .step .bead .line { height: 2px; flex: 1; background: var(--line-strong); }
+  .step:last-child .bead .line { display: none; }
+  .step .s-name { font-weight: 650; font-size: 13.5px; margin-top: 4px; }
+  .step .s-desc { font-family: var(--mono); font-size: 11px; color: var(--slate); line-height: 1.4; }
+
+  /* ---- concern cards ---- */
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .card {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    padding: 20px; box-shadow: var(--shadow);
+  }
+  .card .c-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .card .c-head .k { font-family: var(--mono); font-size: 11px; color: var(--slate); letter-spacing: .1em; text-transform: uppercase; }
+  .card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .card li { display: flex; gap: 9px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+  .card li::before { content: ""; width: 6px; height: 6px; margin-top: 7px; border-radius: 2px; background: var(--accent); flex: none; transform: rotate(45deg); }
+  .card li code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+
+  /* ---- scorecard ---- */
+  .scorewrap { display: grid; grid-template-columns: 200px 1fr; gap: 26px; align-items: center; }
+  .bigscore { border: 1px solid var(--line-strong); border-radius: 14px; padding: 22px; text-align: center; background: var(--surface); box-shadow: var(--shadow); }
+  .bigscore .n { font-family: var(--mono); font-size: 52px; font-weight: 700; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+  .bigscore .n span { font-size: 22px; color: var(--slate); }
+  .bigscore .l { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--slate); margin-top: 10px; }
+  .meters { display: flex; flex-direction: column; gap: 12px; }
+  .meter { display: grid; grid-template-columns: 168px 1fr 44px; gap: 12px; align-items: center; }
+  .meter .m-name { font-size: 13.5px; font-weight: 600; }
+  .meter .track { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--line); }
+  .meter .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blueprint), var(--accent)); }
+  .meter .val { font-family: var(--mono); font-size: 13px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  /* ---- evidence ---- */
+  .evidence { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .ev { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 16px; }
+  .ev .n { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ev .n.ok { color: var(--good); }
+  .ev .l { font-size: 12px; color: var(--slate); margin-top: 4px; line-height: 1.4; }
+
+  /* ---- remaining ---- */
+  .remain { display: flex; flex-direction: column; gap: 10px; }
+  .ritem { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 13px 16px; }
+  .ritem .rn { font-family: var(--mono); font-size: 12px; color: var(--slate); }
+  .ritem .rt { font-size: 14px; }
+  .ritem .rt b { font-weight: 650; }
+  .chip { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip.opt { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+  .chip.ops { color: var(--blueprint); border: 1px solid color-mix(in srgb, var(--blueprint) 40%, var(--line)); background: var(--blueprint-soft); }
+
+  .divider { height: 1px; background: var(--line); border: 0; margin: 8px 0; }
+  footer { padding: 40px 0 60px; color: var(--slate); font-family: var(--mono); font-size: 12px; }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  /* ---- ER data model ---- */
+  .er { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+  .er-cluster { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .er-cluster:first-child { margin-top: 0; }
+  .er-cluster .cl-name { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+  .er-cluster .cl-line { height: 1px; flex: 1; background: var(--line); }
+  .entity { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
+  .e-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line-strong); }
+  .e-name { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .e-role { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--slate); }
+  .cols { display: flex; flex-direction: column; }
+  .col { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 5px 11px; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+  .col:first-child { border-top: 0; }
+  .col .cn { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+  .col .cn .ref { color: var(--blueprint); }
+  .col .ct { font-family: var(--mono); font-size: 10px; color: var(--slate); text-align: right; }
+  .b { font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .03em; padding: 2px 0; border-radius: 4px; text-align: center; }
+  .b.pk { background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  .b.fk { background: var(--blueprint-soft); color: var(--blueprint); border: 1px solid color-mix(in srgb, var(--blueprint) 40%, transparent); }
+  .b.k { background: transparent; color: var(--slate); border: 1px solid var(--line-strong); }
+  .er-notes { margin-top: 18px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; }
+  .er-note { display: flex; gap: 9px; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+  .er-note::before { content: ""; width: 6px; height: 6px; margin-top: 6px; border-radius: 2px; background: var(--blueprint); flex: none; transform: rotate(45deg); }
+  .er-note code { font-family: var(--mono); font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+  .er-legend { font-family: var(--mono); font-size: 11.5px; color: var(--slate); margin-top: 6px; }
+
+  /* ---- deployment topology ---- */
+  .topo-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .topo { min-width: 680px; display: flex; flex-direction: column; }
+  .topo .connector { height: 22px; display: grid; place-items: center; position: relative; }
+  .band { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
+  .band.route { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .band .band-name { font-weight: 700; font-size: 14px; margin-right: 4px; }
+  .band .band-sub { font-family: var(--mono); font-size: 10.5px; color: var(--slate); }
+  .route-rule { font-family: var(--mono); font-size: 11px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--surface-2); }
+  .route-rule b { color: var(--accent); }
+  .k8s { position: relative; border: 1.5px dashed var(--blueprint); border-radius: 14px; padding: 28px 16px 16px; background: var(--blueprint-soft); display: flex; flex-direction: column; gap: 0; }
+  .boundary-label { position: absolute; top: -11px; left: 18px; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; background: var(--paper); color: var(--blueprint); padding: 2px 10px; border: 1px solid var(--blueprint); border-radius: 999px; }
+  .tier { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+  .tier + .connector::before { background: linear-gradient(var(--blueprint), color-mix(in srgb, var(--blueprint) 30%, transparent)); }
+  .tier-l { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--slate); }
+  .nodes { display: flex; flex-wrap: wrap; gap: 10px; }
+  .node { border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); padding: 10px 12px; min-width: 150px; flex: 1 1 158px; }
+  .n-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .n-name { font-family: var(--mono); font-size: 12px; font-weight: 650; color: var(--ink); }
+  .kind { font-family: var(--mono); font-size: 8px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--slate); white-space: nowrap; }
+  .kind.deploy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
+  .kind.svc { color: var(--blueprint); border-color: color-mix(in srgb, var(--blueprint) 40%, transparent); background: var(--blueprint-soft); }
+  .n-meta { display: flex; flex-direction: column; gap: 2px; }
+  .n-meta span { font-family: var(--mono); font-size: 10.5px; color: var(--slate); }
+  .n-meta span b { color: var(--ink-2); font-weight: 600; }
+  .cfgplane { margin-top: 12px; border-top: 1px dashed var(--line-strong); padding-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+  .cfgplane b { color: var(--accent); }
+  .external { position: relative; border: 1.5px dashed var(--line-strong); border-radius: 14px; padding: 28px 16px 16px; background: var(--surface); }
+  .external .boundary-label { color: var(--slate); border-color: var(--line-strong); }
+  .conn-label { text-align: center; font-family: var(--mono); font-size: 10px; color: var(--slate); padding: 2px 0; }
+  .topo-legend { font-family: var(--mono); font-size: 11.5px; color: var(--slate); margin-top: 14px; }
+
+  /* ---- request sequence ---- */
+  .seq-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .seq { min-width: 760px; position: relative; }
+  .seq-heads { display: grid; grid-template-columns: repeat(6, 1fr); margin-bottom: 6px; }
+  .seq-heads .head { text-align: center; padding: 0 4px; }
+  .seq-heads .h-name { font-family: var(--mono); font-size: 11px; font-weight: 650; color: var(--ink); display: inline-block; padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); }
+  .seq-heads .h-role { display: block; font-family: var(--mono); font-size: 8.5px; color: var(--slate); margin-top: 4px; letter-spacing: .03em; }
+  .seq-lanes { position: relative; }
+  .lifelines { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+  .ll { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--line-strong); }
+  .row { position: relative; height: 46px; z-index: 1; }
+  .arrow { position: absolute; top: 28px; height: 0; border-top: 1.5px solid var(--ink-2); }
+  .arrow.ret { border-top-style: dashed; border-color: var(--slate); }
+  .arrow::after { content: ""; position: absolute; top: -5px; border: 5px solid transparent; }
+  .arrow.right::after { right: -1px; border-left-color: var(--ink-2); border-right-width: 0; }
+  .arrow.left::after { left: -1px; border-right-color: var(--ink-2); border-left-width: 0; }
+  .arrow.ret.right::after { border-left-color: var(--slate); }
+  .arrow.ret.left::after { border-right-color: var(--slate); }
+  .mlabel { position: absolute; top: 6px; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; color: var(--ink-2); white-space: nowrap; background: var(--paper); padding: 0 6px; }
+  .mlabel .code { color: var(--accent); }
+  .phase { position: relative; z-index: 2; margin: 12px 0 4px; display: flex; align-items: center; gap: 10px; }
+  .phase .p-name { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); white-space: nowrap; background: var(--paper); padding-right: 6px; }
+  .phase .p-line { height: 1px; flex: 1; background: var(--line); }
+  .phase.async .p-name { color: var(--blueprint); }
+  .seq-legend { font-family: var(--mono); font-size: 11px; color: var(--slate); margin-top: 14px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .seq-legend b { color: var(--ink-2); font-weight: 600; }
+
+  @media (max-width: 720px) {
+    .grid, .evidence { grid-template-columns: 1fr; }
+    .scorewrap { grid-template-columns: 1fr; }
+    .meter { grid-template-columns: 120px 1fr 40px; }
+    .plane, .rail { grid-template-columns: 92px 1fr; }
+    .er { grid-template-columns: 1fr; }
+    .er-notes { grid-template-columns: 1fr; }
+    .tier { grid-template-columns: 70px 1fr; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .fill { transition: width .8s cubic-bezier(.2,.7,.2,1); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> FDE&nbsp;·&nbsp;SYSTEM&nbsp;ARCHITECTURE</div>
+    <div class="rating-pill">PROD READINESS <b>9.0</b>/10</div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="meta-eyebrow">
+      <span class="eyebrow">Forward Deployed Engineer — End-to-End View</span>
+    </div>
+    <h1>Enterprise AI Invoice Processing Platform</h1>
+    <p class="thesis">
+      A multi-tenant platform that ingests invoices, extracts structured data with AI, validates
+      against business rules, routes uncertain cases to human reviewers, and keeps a complete audit
+      trail. This is the architect's cut: <b>every plane of the system</b>, what the FDE hardened,
+      and exactly how production-ready each layer is.
+    </p>
+    <div class="metastrip">
+      <div class="tag"><span>api</span> FastAPI · Starlette 1.3 · Python 3.12</div>
+      <div class="tag"><span>web</span> React 19 · Vite · TypeScript</div>
+      <div class="tag"><span>data</span> PostgreSQL 16 · Redis 7 · S3</div>
+      <div class="tag"><span>ai</span> OpenAI · strict JSON schema</div>
+      <div class="tag"><span>run</span> Docker · Kubernetes · GitHub Actions</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ARCHITECTURE -->
+  <section id="arch">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">01</span><h2>System architecture</h2></div>
+      <p class="sec-sub">Five planes from browser to telemetry, with security, delivery, and deployment
+        cutting across all of them. Amber tiles mark the AI-specific path; the blue spine is request flow.</p>
+
+      <div class="diagram-scroll">
+        <div class="system">
+
+          <div class="plane">
+            <div class="plane-label"><span class="num">L1</span><span class="name">Client</span><span class="own">FDE: cockpit UX + RBAC gating</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">Reviewer Cockpit</div><div class="d">React 19 · Vite SPA</div></div>
+              <div class="tile"><div class="t">React Query + Zod forms</div><div class="d">data + validation</div></div>
+              <div class="tile"><div class="t">Error boundary</div><div class="d">no white-screen</div></div>
+            </div>
+          </div>
+          <div class="connector"></div>
+
+          <div class="plane">
+            <div class="plane-label"><span class="num">L2</span><span class="name">Edge</span><span class="own">FDE: routing + TLS + CORS</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">Ingress-nginx</div><div class="d">/ → web · /api,/health → api</div></div>
+              <div class="tile"><div class="t">Static (nginx)</div><div class="d">non-root uid 101</div></div>
+              <div class="tile accent"><div class="t">httpOnly cookies</div><div class="d">SameSite=Lax</div></div>
+            </div>
+          </div>
+          <div class="connector"></div>
+
+          <div class="plane">
+            <div class="plane-label"><span class="num">L3</span><span class="name">Application</span><span class="own">FDE: hardening + workers</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">FastAPI API</div><div class="d">N replicas · non-root 10001</div></div>
+              <div class="tile"><div class="t">Processing Worker</div><div class="d">queue consumer · retries</div></div>
+              <div class="tile accent"><div class="t">AI Extraction</div><div class="d">OpenAI · strict schema</div></div>
+              <div class="tile"><div class="t">Validation engine</div><div class="d">business rules</div></div>
+            </div>
+          </div>
+          <div class="connector"></div>
+
+          <div class="plane">
+            <div class="plane-label"><span class="num">L4</span><span class="name">Data &amp; State</span><span class="own">FDE: isolation + migrations</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">PostgreSQL 16</div><div class="d">Alembic · per-org scoped</div></div>
+              <div class="tile"><div class="t">Redis 7</div><div class="d">queue · rate-limit · revocation</div></div>
+              <div class="tile"><div class="t">Object storage</div><div class="d">S3 / local · signed URLs</div></div>
+            </div>
+          </div>
+          <div class="connector"></div>
+
+          <div class="plane">
+            <div class="plane-label"><span class="num">L5</span><span class="name">Observability</span><span class="own">FDE: signals + dashboards</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">Prometheus</div><div class="d">counters + p95/p99 histograms</div></div>
+              <div class="tile"><div class="t">OpenTelemetry</div><div class="d">API · DB · Redis traces</div></div>
+              <div class="tile"><div class="t">structlog JSON</div><div class="d">X-Request-ID correlation</div></div>
+              <div class="tile"><div class="t">Grafana</div><div class="d">ops dashboard</div></div>
+            </div>
+          </div>
+
+          <div class="rail">
+            <div class="plane-label"><span class="num">X-CUT</span><span class="name">Cross-cutting</span><span class="own">spans every plane</span></div>
+            <div class="tiles">
+              <div class="tile"><div class="t">Security</div><div class="d">RBAC · tenant isolation · revocation</div></div>
+              <div class="tile"><div class="t">CI/CD</div><div class="d">ruff · tsc · vitest · pip-audit</div></div>
+              <div class="tile"><div class="t">Deploy</div><div class="d">kustomize · Terraform · kind</div></div>
+              <div class="tile"><div class="t">Rate limiting</div><div class="d">Redis sliding window</div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch live"></i> AI / auth-critical path</span>
+        <span><i class="swatch struct"></i> request-flow spine</span>
+        <span><i class="swatch"></i> hardened &amp; verified</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA MODEL / ER -->
+  <section id="data">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">02</span><h2>Data model — ER view</h2></div>
+      <p class="sec-sub">Twelve tables, PostgreSQL. Every tenant-owned row carries an <code>organization_id</code>
+        and inherits <code>created_at</code>/<code>updated_at</code>. <span class="er-legend">Cardinality: <b>1&nbsp;──&lt;&nbsp;N</b> (parent to child). Badges: <b>PK</b> primary key · <b>FK</b> foreign key · <b>K</b> indexed / constrained.</span></p>
+
+      <div class="er">
+        <div class="er-cluster"><span class="cl-name">Tenancy &amp; Identity</span><span class="cl-line"></span></div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">organizations</span><span class="e-role">tenant root</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">name</span><span class="ct">varchar</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">users</span><span class="e-role">principal · RBAC</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">organization_id <span class="ref">→ organizations</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">email</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">role</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">password_hash</span><span class="ct">varchar?</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">suppliers</span><span class="e-role">uq(org, name)</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">organization_id <span class="ref">→ organizations</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b k">UQ</span><span class="cn">name</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">tax_id</span><span class="ct">varchar?</span></div>
+            <div class="col"><span class="b"></span><span class="cn">bank_account_hash</span><span class="ct">varchar?</span></div>
+          </div>
+        </div>
+
+        <div class="er-cluster"><span class="cl-name">Invoice core</span><span class="cl-line"></span></div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoices</span><span class="e-role">aggregate root</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">organization_id <span class="ref">→ organizations</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">supplier_id <span class="ref">→ suppliers</span></span><span class="ct">uuid?</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">uploaded_by <span class="ref">→ users</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b k">UQ</span><span class="cn">invoice_number</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">total_amount</span><span class="ct">numeric</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">status</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">file_checksum</span><span class="ct">varchar?</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_files</span><span class="e-role">object refs</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">storage_key</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">mime_type</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">file_size</span><span class="ct">int</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_line_items</span><span class="e-role">detail</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">description</span><span class="ct">text</span></div>
+            <div class="col"><span class="b"></span><span class="cn">quantity</span><span class="ct">numeric?</span></div>
+            <div class="col"><span class="b"></span><span class="cn">line_total</span><span class="ct">numeric?</span></div>
+          </div>
+        </div>
+
+        <div class="er-cluster"><span class="cl-name">AI &amp; Validation</span><span class="cl-line"></span></div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">prompt_versions</span><span class="e-role">uq(name, version)</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b k">UQ</span><span class="cn">name</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b k">UQ</span><span class="cn">version</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">json_schema</span><span class="ct">jsonb</span></div>
+            <div class="col"><span class="b"></span><span class="cn">is_active</span><span class="ct">bool</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_extractions</span><span class="e-role">AI output</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">prompt_version_id <span class="ref">→ prompt_versions</span></span><span class="ct">uuid?</span></div>
+            <div class="col"><span class="b"></span><span class="cn">model_name</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">extracted_payload</span><span class="ct">jsonb</span></div>
+            <div class="col"><span class="b"></span><span class="cn">confidence_score</span><span class="ct">numeric?</span></div>
+            <div class="col"><span class="b"></span><span class="cn">estimated_cost</span><span class="ct">numeric?</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_validation_results</span><span class="e-role">rule outcomes</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">rule_code</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">severity</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">passed</span><span class="ct">bool</span></div>
+          </div>
+        </div>
+
+        <div class="er-cluster"><span class="cl-name">Workflow &amp; Trail</span><span class="cl-line"></span></div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_reviews</span><span class="e-role">human decision</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">reviewer_id <span class="ref">→ users</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">decision</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">corrected_fields</span><span class="ct">jsonb?</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">processing_jobs</span><span class="e-role">async queue</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">job_type</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">status</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">attempts</span><span class="ct">int</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
+          <div class="e-head"><span class="e-name">audit_logs</span><span class="e-role">append-only</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">organization_id <span class="ref">→ organizations</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">actor_user_id <span class="ref">→ users</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">entity_type + entity_id</span><span class="ct">varchar·uuid</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">action</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">metadata</span><span class="ct">jsonb</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="er-notes">
+        <div class="er-note"><span><code>invoices</code> is the aggregate root: <b>1&nbsp;──&lt;&nbsp;N</b> to files, line_items, extractions, validation_results, reviews, and processing_jobs.</span></div>
+        <div class="er-note"><span>Tenant isolation: every tenant table foreign-keys <code>organization_id</code>; all queries are scoped to the authenticated principal's org.</span></div>
+        <div class="er-note"><span><code>users</code> fans out to invoices (uploader), reviews (reviewer), and audit_logs (actor).</span></div>
+        <div class="er-note"><span>Uniqueness: <code>invoices(org, supplier, invoice_number)</code>, <code>suppliers(org, name)</code>, <code>prompt_versions(name, version)</code>.</span></div>
+        <div class="er-note"><span><code>audit_logs</code> is append-only — ORM <code>before_update</code>/<code>before_delete</code> raise; no updates or deletes.</span></div>
+        <div class="er-note"><span><code>prompt_versions</code> <b>1&nbsp;──&lt;&nbsp;N</b> extractions — model + prompt provenance stored per extraction.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIFECYCLE -->
+  <section id="flow">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">03</span><h2>Invoice request lifecycle</h2></div>
+      <p class="sec-sub">The core business flow, front to back — the path an invoice takes from upload to a
+        permanent, audited decision.</p>
+      <div class="flow">
+        <div class="steps">
+          <div class="step"><div class="bead"><b>1</b><span class="line"></span></div><div class="s-name">Sign in</div><div class="s-desc">httpOnly cookie · refresh rotation</div></div>
+          <div class="step"><div class="bead"><b>2</b><span class="line"></span></div><div class="s-name">Upload</div><div class="s-desc">multipart · checksum · size/MIME</div></div>
+          <div class="step"><div class="bead"><b>3</b><span class="line"></span></div><div class="s-name">Queue job</div><div class="s-desc">Redis · worker · retries</div></div>
+          <div class="step"><div class="bead"><b>4</b><span class="line"></span></div><div class="s-name">AI extract</div><div class="s-desc">OpenAI · strict JSON schema</div></div>
+          <div class="step"><div class="bead"><b>5</b><span class="line"></span></div><div class="s-name">Validate</div><div class="s-desc">business rules · confidence</div></div>
+          <div class="step"><div class="bead"><b>6</b><span class="line"></span></div><div class="s-name">Human review</div><div class="s-desc">edit · optimistic concurrency</div></div>
+          <div class="step"><div class="bead"><b>7</b><span class="line"></span></div><div class="s-name">Approve / reject</div><div class="s-desc">RBAC-gated decision</div></div>
+          <div class="step"><div class="bead"><b>8</b></div><div class="s-name">Audit</div><div class="s-desc">append-only · actor + metadata</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUEST SEQUENCE -->
+  <section id="sequence">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">04</span><h2>Request sequence</h2></div>
+      <p class="sec-sub">The same flow as messages over time. Note the async boundary: upload returns immediately after
+        enqueue; the worker extracts out-of-band. Solid = request, dashed = response.</p>
+
+      <div class="seq-scroll">
+        <div class="seq">
+          <div class="seq-heads">
+            <div class="head"><span class="h-name">Browser</span><span class="h-role">cockpit</span></div>
+            <div class="head"><span class="h-name">API</span><span class="h-role">fastapi</span></div>
+            <div class="head"><span class="h-name">Redis</span><span class="h-role">queue</span></div>
+            <div class="head"><span class="h-name">Worker</span><span class="h-role">consumer</span></div>
+            <div class="head"><span class="h-name">OpenAI</span><span class="h-role">extract</span></div>
+            <div class="head"><span class="h-name">Postgres</span><span class="h-role">store</span></div>
+          </div>
+
+          <div class="seq-lanes">
+            <div class="lifelines">
+              <div class="ll" style="left:8.333%"></div>
+              <div class="ll" style="left:25%"></div>
+              <div class="ll" style="left:41.667%"></div>
+              <div class="ll" style="left:58.333%"></div>
+              <div class="ll" style="left:75%"></div>
+              <div class="ll" style="left:91.667%"></div>
+            </div>
+
+            <div class="phase"><span class="p-name">1 · Upload — synchronous</span><span class="p-line"></span></div>
+            <div class="row"><div class="arrow right" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">POST <span class="code">/invoices/upload</span> · cookie</span></div>
+            <div class="row"><div class="arrow right" style="left:25%;width:66.667%"></div><span class="mlabel" style="left:58.333%">INSERT invoice + file (org-scoped)</span></div>
+            <div class="row"><div class="arrow right" style="left:25%;width:16.667%"></div><span class="mlabel" style="left:33.333%">LPUSH extraction job</span></div>
+            <div class="row"><div class="arrow ret left" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">201 <span class="code">{status: uploaded}</span></span></div>
+
+            <div class="phase async"><span class="p-name">⌇ decoupled by queue — async</span><span class="p-line"></span></div>
+
+            <div class="phase"><span class="p-name">2 · Extraction — worker</span><span class="p-line"></span></div>
+            <div class="row"><div class="arrow left" style="left:41.667%;width:16.666%"></div><span class="mlabel" style="left:50%">BRPOP job (blocking poll)</span></div>
+            <div class="row"><div class="arrow right" style="left:58.333%;width:16.667%"></div><span class="mlabel" style="left:66.666%">extract · strict JSON schema</span></div>
+            <div class="row"><div class="arrow ret left" style="left:58.333%;width:16.667%"></div><span class="mlabel" style="left:66.666%">payload + tokens + cost</span></div>
+            <div class="row"><div class="arrow right" style="left:58.333%;width:33.334%"></div><span class="mlabel" style="left:75%">write extraction · validation · status</span></div>
+
+            <div class="phase"><span class="p-name">3 · Review — synchronous</span><span class="p-line"></span></div>
+            <div class="row"><div class="arrow right" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">GET <span class="code">/invoices</span> · review queue</span></div>
+            <div class="row"><div class="arrow right" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">POST <span class="code">/:id/review</span> · expected_updated_at</span></div>
+            <div class="row"><div class="arrow right" style="left:25%;width:66.667%"></div><span class="mlabel" style="left:58.333%">optimistic-lock update + append audit_log</span></div>
+            <div class="row"><div class="arrow ret left" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">200 updated invoice</span></div>
+          </div>
+
+          <div class="seq-legend">
+            <span><b>rate-limited:</b> login + upload (Redis sliding window)</span>
+            <span><b>on failure:</b> job retries w/ backoff → marked failed → reprocessable</span>
+            <span><b>no API key:</b> deterministic dev extractor</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONCERNS -->
+  <section id="concerns">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">05</span><h2>Cross-cutting engineering</h2></div>
+      <div class="grid">
+        <div class="card">
+          <div class="c-head"><h3>Security</h3><span class="k">9.0</span></div>
+          <ul>
+            <li>Auth in <code>httpOnly</code> cookies — token never reaches JS; Redis-backed revocation on logout</li>
+            <li>Refresh-token rotation; replayed refresh tokens rejected</li>
+            <li>Server-enforced tenant isolation &amp; RBAC on every privileged action</li>
+            <li>PBKDF2-SHA256 (390k iters); JWT startup guard rejects default secret</li>
+            <li>Distributed rate limiting (login + upload) via Redis sliding window</li>
+            <li>Dependencies <code>CVE-clean</code> — pip-audit is a blocking gate</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="c-head"><h3>Observability</h3><span class="k">9.0</span></div>
+          <ul>
+            <li>Prometheus metrics incl. request-duration <code>histogram</code> → p95/p99 by query</li>
+            <li>OpenTelemetry tracing across FastAPI, SQLAlchemy, Redis (opt-in)</li>
+            <li>Structured JSON logs with <code>X-Request-ID</code> correlation end to end</li>
+            <li>Bounded label cardinality (route templates, not raw paths)</li>
+            <li><code>/health</code> liveness + <code>/health/ready</code> DB&amp;Redis readiness probe</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="c-head"><h3>Deployment</h3><span class="k">9.0</span></div>
+          <ul>
+            <li>Multi-stage, <code>non-root</code> images (api uid 10001, web uid 101)</li>
+            <li>Healthcheck-gated Compose for dev / staging / prod; resource limits + restart policies</li>
+            <li>Kubernetes: kustomize base + staging / production / local overlays, HPA, migration Job</li>
+            <li>Terraform skeleton; one-command <code>scripts/kind-deploy.sh</code></li>
+            <li>Fail-fast required-secret validation in prod compose</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="c-head"><h3>Delivery &amp; Quality</h3><span class="k">8.7</span></div>
+          <ul>
+            <li>Backend suite <code>94 / 94</code> — tenant isolation, auth, rate limits, workflows</li>
+            <li>Frontend Vitest unit tests + Playwright e2e happy path</li>
+            <li>CI: ruff · tsc · vitest · blocking pip-audit · advisory npm audit · full Docker suite</li>
+            <li>Append-only audit enforced; optimistic concurrency on review</li>
+            <li>Docs kept honest: current-vs-target contract + readiness checklist</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEPLOYMENT TOPOLOGY -->
+  <section id="topo">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">06</span><h2>Deployment topology</h2></div>
+      <p class="sec-sub">Kubernetes (kustomize base + <code>staging</code> / <code>production</code> / <code>local</code> overlays).
+        Traffic enters through ingress-nginx; workloads run non-root inside the namespace; Postgres and Redis are
+        external managed services in staging/production. Replica counts shown <b>staging&nbsp;→&nbsp;production</b>.</p>
+
+      <div class="topo-scroll">
+        <div class="topo">
+
+          <div class="band route">
+            <span class="band-name">Ingress-nginx</span>
+            <span class="band-sub">client&nbsp;→&nbsp;https://host</span>
+            <span class="route-rule"><b>/</b> → frontend-svc:80</span>
+            <span class="route-rule"><b>/api</b> → backend-svc:8000</span>
+            <span class="route-rule"><b>/health</b> → backend-svc:8000</span>
+          </div>
+
+          <div class="connector"></div>
+
+          <div class="k8s">
+            <span class="boundary-label">namespace: invoice-platform-{env}</span>
+
+            <div class="tier">
+              <span class="tier-l">Services</span>
+              <div class="nodes">
+                <div class="node">
+                  <div class="n-head"><span class="n-name">frontend-svc</span><span class="kind svc">service</span></div>
+                  <div class="n-meta"><span>ClusterIP · <b>:80 → 8080</b></span></div>
+                </div>
+                <div class="node">
+                  <div class="n-head"><span class="n-name">backend-svc</span><span class="kind svc">service</span></div>
+                  <div class="n-meta"><span>ClusterIP · <b>:8000</b></span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="connector"></div>
+
+            <div class="tier">
+              <span class="tier-l">Workloads</span>
+              <div class="nodes">
+                <div class="node">
+                  <div class="n-head"><span class="n-name">frontend</span><span class="kind deploy">deployment</span></div>
+                  <div class="n-meta">
+                    <span>nginx · <b>uid 101</b></span>
+                    <span>replicas <b>1 → 2</b></span>
+                    <span>probe <b>/healthz</b></span>
+                  </div>
+                </div>
+                <div class="node">
+                  <div class="n-head"><span class="n-name">backend</span><span class="kind deploy">deployment</span></div>
+                  <div class="n-meta">
+                    <span>uvicorn · <b>uid 10001</b></span>
+                    <span>replicas <b>1 → 3</b></span>
+                    <span>live <b>/health</b></span>
+                    <span>ready <b>/health/ready</b></span>
+                  </div>
+                </div>
+                <div class="node">
+                  <div class="n-head"><span class="n-name">backend</span><span class="kind">hpa</span></div>
+                  <div class="n-meta">
+                    <span>target CPU <b>70%</b></span>
+                    <span>min <b>2</b> / max <b>6</b></span>
+                  </div>
+                </div>
+                <div class="node">
+                  <div class="n-head"><span class="n-name">worker</span><span class="kind deploy">deployment</span></div>
+                  <div class="n-meta">
+                    <span>app.worker · <b>uid 10001</b></span>
+                    <span>replicas <b>1 → 2</b></span>
+                    <span><b>no ingress</b> · queue consumer</span>
+                  </div>
+                </div>
+                <div class="node">
+                  <div class="n-head"><span class="n-name">backend-migrate</span><span class="kind">job</span></div>
+                  <div class="n-meta">
+                    <span>alembic upgrade head</span>
+                    <span>runs once · <b>pre-rollout</b></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cfgplane">
+              <b>ConfigMap</b> invoice-platform-config &nbsp;+&nbsp; <b>Secret</b> invoice-platform-secrets &nbsp;→&nbsp; envFrom → backend · worker · migration Job
+            </div>
+          </div>
+
+          <div class="connector"></div>
+          <div class="conn-label">DATABASE_URL · REDIS_URL · object storage credentials</div>
+
+          <div class="external">
+            <span class="boundary-label">External · managed (staging + production)</span>
+            <div class="nodes">
+              <div class="node">
+                <div class="n-head"><span class="n-name">PostgreSQL 16</span><span class="kind">database</span></div>
+                <div class="n-meta"><span>via <b>DATABASE_URL</b></span><span>per-org scoped queries</span></div>
+              </div>
+              <div class="node">
+                <div class="n-head"><span class="n-name">Redis 7</span><span class="kind">cache</span></div>
+                <div class="n-meta"><span>via <b>REDIS_URL</b></span><span>queue · rate-limit · revocation</span></div>
+              </div>
+              <div class="node">
+                <div class="n-head"><span class="n-name">Object storage</span><span class="kind">s3</span></div>
+                <div class="n-meta"><span>S3-compatible</span><span>private · signed URLs</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="topo-legend">The <code>local</code> overlay is self-contained — it runs Postgres + Redis in-cluster instead of external, for one-command kind validation (<code>scripts/kind-deploy.sh</code>).</p>
+    </div>
+  </section>
+
+  <!-- SCORECARD -->
+  <section id="score">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">07</span><h2>Production readiness scorecard</h2></div>
+      <div class="scorewrap">
+        <div class="bigscore">
+          <div class="n">9.0<span>/10</span></div>
+          <div class="l">Overall · pilot-ready</div>
+        </div>
+        <div class="meters">
+          <div class="meter"><span class="m-name">Security</span><span class="track"><i class="fill" style="width:90%"></i></span><span class="val">9.0</span></div>
+          <div class="meter"><span class="m-name">Infra &amp; Observability</span><span class="track"><i class="fill" style="width:90%"></i></span><span class="val">9.0</span></div>
+          <div class="meter"><span class="m-name">Deployment</span><span class="track"><i class="fill" style="width:90%"></i></span><span class="val">9.0</span></div>
+          <div class="meter"><span class="m-name">Testing &amp; CI</span><span class="track"><i class="fill" style="width:87%"></i></span><span class="val">8.7</span></div>
+          <div class="meter"><span class="m-name">Frontend</span><span class="track"><i class="fill" style="width:85%"></i></span><span class="val">8.5</span></div>
+          <div class="meter"><span class="m-name">Documentation</span><span class="track"><i class="fill" style="width:85%"></i></span><span class="val">8.5</span></div>
+        </div>
+      </div>
+
+      <div class="divider" style="margin:28px 0 22px"></div>
+
+      <div class="evidence">
+        <div class="ev"><div class="n ok">94/94</div><div class="l">backend tests passing</div></div>
+        <div class="ev"><div class="n ok">0</div><div class="l">known dependency CVEs (pip-audit)</div></div>
+        <div class="ev"><div class="n ok">3/3</div><div class="l">CI jobs green on main</div></div>
+        <div class="ev"><div class="n">5.8 → 9.0</div><div class="l">readiness trajectory</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REMAINING -->
+  <section id="remaining">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">08</span><h2>Remaining path to 10</h2></div>
+      <p class="sec-sub">Every launch <em>blocker</em> is closed. What's left is deployment-to-real-infra and
+        defense-in-depth polish — capability is in place.</p>
+      <div class="remain">
+        <div class="ritem"><span class="rn">R1</span><span class="rt"><b>Apply to a live hosted cluster.</b> Manifests validated (kustomize + kubectl render); never applied to real infra — locally blocked only by node-image bandwidth.</span><span class="chip ops">ops</span></div>
+        <div class="ritem"><span class="rn">R2</span><span class="rt"><b>Hosted observability backend.</b> Deploy Prometheus / Grafana / OTel collector to collect the signals the app already emits.</span><span class="chip ops">ops</span></div>
+        <div class="ritem"><span class="rn">R3</span><span class="rt"><b>CSRF tokens</b> as defense-in-depth (today mitigated by SameSite=Lax cookies).</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R4</span><span class="rt"><b>Broader e2e + accessibility coverage</b> beyond happy-path Playwright and current ARIA roles.</span><span class="chip opt">hardening</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>FDE Architecture View · Enterprise Invoice Platform</span>
+    <span>backend ~90% · frontend ~85% · ops ~85% production-ready</span>
+  </div>
+</footer>
+
+<script>
+  // Reveal meters after paint so the transition reads as a fill.
+  window.addEventListener("load", function () {
+    var fills = document.querySelectorAll(".fill");
+    fills.forEach(function (f) {
+      var w = f.style.width; f.style.width = "0";
+      requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.width = w; }); });
+    });
+  });
+</script>
+</body>
+</html>

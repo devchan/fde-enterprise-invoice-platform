@@ -16,6 +16,7 @@ This documentation describes an enterprise-grade AI invoice processing platform 
 - [Deployment Guide](deployment-guide.md)
 - [Engineering Standards](engineering-standards.md)
 - [Production Readiness Checklist](production-readiness-checklist.md)
+- [Architecture View](architecture-view.html) — end-to-end FDE view (system, data model, sequence, topology, readiness). Self-contained HTML; open in a browser.
 
 ## Diagrams
 
