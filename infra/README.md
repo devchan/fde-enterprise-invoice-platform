@@ -54,6 +54,23 @@ kustomize build infra/k8s/overlays/staging
 
 Run migrations once per release via the `backend-migrate` Job (`alembic upgrade head`).
 
+### Local kind deploy (`overlays/local` + `scripts/kind-deploy.sh`)
+
+For a self-contained end-to-end validation of the manifests on a local
+[kind](https://kind.sigs.k8s.io) cluster (requires `docker`, `kind`, `kubectl`):
+
+```bash
+scripts/kind-deploy.sh            # build images, create cluster, deploy, verify
+scripts/kind-deploy.sh --delete   # tear the cluster down
+```
+
+Unlike staging/production (which assume external managed Postgres/Redis), the
+`overlays/local` overlay is self-contained: it deploys in-cluster Postgres +
+Redis, a throwaway dev Secret, local object storage, and `APP_ENV=local`. After
+a successful run the cockpit is served at `http://localhost:8081` (ingress-nginx
+routes `/` to the frontend and `/api` + `/health` to the backend). This overlay
+is for local validation only — never point it at a real environment.
+
 ### Terraform (`terraform/`)
 
 Cloud-neutral skeleton for the container-platform prerequisites (namespace,
