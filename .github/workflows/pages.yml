@@ -31,6 +31,10 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Create/enable the Pages site if it doesn't exist yet, instead of
+          # failing with "Get Pages site failed / Not Found".
+          enablement: true
 
       # Publish the docs/ directory as the site root: index.html redirects to
       # architecture-view.html; .nojekyll serves the static files verbatim.
