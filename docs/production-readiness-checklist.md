@@ -70,6 +70,7 @@ Frontend scope note: the previous static cockpit has been retired. The React/Vit
 - [x] Auth tokens are delivered in httpOnly cookies (not readable by JavaScript)
 - [x] Tokens can be revoked (logout revokes via a Redis blocklist)
 - [x] Refresh tokens rotate on use and replayed refresh tokens are rejected
+- [x] Threat model (STRIDE) is documented with trust boundaries, mitigations, and residual risks
 - [ ] Admin actions are audited
 - [x] User-admin actions are audited
 
@@ -100,8 +101,24 @@ Security scope note: the checked items apply to the current implemented API surf
 - [x] Validation failure rate is measured
 - [x] AI cost is measured
 - [x] Dashboards exist for operations
+- [x] Service Level Objectives are defined, each mapped to a backing signal
+- [ ] SLO attainment is measured against production telemetry
 
 Observability scope note: structured JSON logs, request IDs, API request metrics, Redis queue depth, worker job/invoice log enrichment, failed extraction job totals, validation failure totals, completed processing duration totals, AI estimated cost totals, and an importable Grafana dashboard are implemented. Request-latency histogram buckets (p95/p99) and opt-in OpenTelemetry tracing for FastAPI, SQLAlchemy, and Redis are implemented; a hosted tracing/metrics backend deployment remains an operator step.
+
+## Architecture and Documentation
+
+- [x] System architecture is documented (client, edge, application, data, and observability planes)
+- [x] Data model is documented as an ER view (entities, keys, relationships, constraints)
+- [x] Invoice request lifecycle is documented
+- [x] Request sequence (client, API, queue, worker, provider, database) is documented
+- [x] Deployment topology is documented (ingress, services, workloads, config/secret plane, external datastores)
+- [x] SLOs and the observability signal inventory are documented
+- [x] Threat model (STRIDE) with trust boundaries and residual risks is documented
+- [x] End-to-end architecture view is published and browsable (GitHub Pages)
+- [x] Documentation separates current-state from target-state (documentation contract)
+
+Architecture scope note: the end-to-end architect view (system, data model, request lifecycle, request sequence, deployment topology, SLOs and observability, threat model, readiness scorecard, and roadmap) is maintained as `docs/architecture-view.html` and published via GitHub Pages. It is a living snapshot regenerated from the source view; keep it in step with the code as the platform evolves.
 
 ## Deployment
 
