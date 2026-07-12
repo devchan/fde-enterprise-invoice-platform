@@ -1,3 +1,14 @@
+"""Lifecycle management for background processing jobs (currently extraction).
+
+Coordinates the Redis work queue and the job/invoice state machine, writing an
+audit trail for every status transition. Failures are retried up to a
+configurable attempt cap before the job is marked permanently failed.
+
+Model/service imports are done lazily inside functions to avoid import cycles
+(models import services and vice versa) and to keep this module importable by
+the worker without eagerly loading the ORM.
+"""
+
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -73,10 +84,13 @@ def dequeue_processing_job(redis_client: Any, *, timeout_seconds: int | None = N
     from app.core.config import settings
 
     timeout = settings.worker_poll_timeout_seconds if timeout_seconds is None else timeout_seconds
+    # Blocking pop so the worker sleeps until a job arrives instead of busy-polling;
+    # returns None on timeout to let the caller loop and re-check for shutdown.
     result = redis_client.blpop([settings.processing_queue_name], timeout=timeout)
     if result is None:
         return None
 
+    # blpop yields (queue_name, value); value may be bytes depending on the client.
     _, raw_job_id = result
     value = raw_job_id.decode("utf-8") if isinstance(raw_job_id, bytes) else str(raw_job_id)
     return UUID(value)
@@ -101,6 +115,9 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
         _mark_job_failed(db, job=job, error_message="Invoice was not found.")
         raise ProcessingJobError("Invoice was not found for processing job.")
 
+    # Idempotency guard: only fresh or previously failed jobs are eligible to
+    # run. A job already processing/completed is returned untouched so a
+    # duplicate queue delivery cannot reprocess it.
     if ProcessingJobStatus(job.status) not in {ProcessingJobStatus.QUEUED, ProcessingJobStatus.FAILED}:
         return ProcessingJobResult(
             processing_job_id=job.id,
@@ -122,6 +139,8 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
         file_bytes=file_bytes,
         mime_type=invoice_file.mime_type,
     )
+    # Capture the status before persisting so we only emit a status-changed
+    # audit event below if extraction actually advanced the invoice's state.
     previous_invoice_status = InvoiceStatus(invoice.status)
     extraction = persist_extraction_result(db, invoice=invoice, result=extraction_result)
     db.flush()
@@ -161,6 +180,8 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
             )
         )
     _transition_job(db, job=job, invoice=invoice, status=ProcessingJobStatus.COMPLETED)
+    # Single commit persists the extraction, both audit events, and the terminal
+    # job/invoice statuses atomically.
     db.commit()
     db.refresh(job)
 
@@ -181,6 +202,8 @@ def get_processing_job_for_organization(db: Any, processing_job_id: UUID, *, org
     from app.models.processing import ProcessingJob
 
     query = select(ProcessingJob).where(ProcessingJob.id == processing_job_id)
+    # When an org is given, join through the invoice to enforce tenant scoping so
+    # one org cannot read another's job by id. A None org is trusted (worker/admin).
     if organization_id is not None:
         from app.models.invoice import Invoice
 
@@ -239,6 +262,8 @@ def requeue_processing_job(
         processing_job_id,
         organization_id=organization_id,
     )
+    # Manual requeue is an operator recovery action; restrict it to failed jobs
+    # so an in-flight or completed job can't be duplicated onto the queue.
     if ProcessingJobStatus(job.status) != ProcessingJobStatus.FAILED:
         raise ProcessingJobError("Only failed processing jobs can be reprocessed.")
 
@@ -287,6 +312,8 @@ def requeue_processing_job(
             request_id=request_id,
         )
     )
+    # Commit the reset state before enqueueing so the worker can never dequeue
+    # the job id before its row is visibly back in QUEUED.
     db.commit()
     enqueue_processing_job(redis_client, job.id)
     db.refresh(job)
@@ -329,6 +356,8 @@ def record_processing_job_failure(
     job.attempts += 1
     invoice = db.get(Invoice, job.invoice_id)
 
+    # Under the attempt cap: requeue for another try; at/over the cap: fail
+    # permanently (handled in the fall-through below).
     if job.attempts < max_attempts:
         previous_status = job.status
         job.status = ProcessingJobStatus.QUEUED.value
@@ -353,6 +382,8 @@ def record_processing_job_failure(
                     event_metadata=retry_event.metadata,
                 )
             )
+            # Only log a status change when the job wasn't already QUEUED, to
+            # avoid a redundant no-op transition event.
             if previous_status != job.status:
                 status_event = processing_job_status_changed_event(
                     invoice_id=invoice.id,
@@ -396,6 +427,8 @@ def _transition_job(db: Any, *, job: Any, invoice: Any, status: ProcessingJobSta
 
     previous_status = job.status
     job.status = status.value
+    # Count an attempt when work actually starts, so the retry cap reflects real
+    # execution attempts rather than mere queue/complete transitions.
     if status == ProcessingJobStatus.PROCESSING:
         job.attempts += 1
     event = processing_job_status_changed_event(
@@ -420,6 +453,8 @@ def _transition_job(db: Any, *, job: Any, invoice: Any, status: ProcessingJobSta
 def _transition_invoice(db: Any, *, invoice: Any, status: InvoiceStatus) -> None:
     from app.models.audit import AuditLog
 
+    # Route through transition_invoice_status so only legal state changes are
+    # allowed; illegal transitions raise rather than silently corrupting state.
     previous_status = InvoiceStatus(invoice.status)
     invoice.status = transition_invoice_status(previous_status, status).value
     event = invoice_status_changed_event(
@@ -448,6 +483,8 @@ def _mark_job_failed(db: Any, *, job: Any, error_message: str) -> None:
     previous_status = job.status
     job.status = ProcessingJobStatus.FAILED.value
     job.last_error = error_message
+    # Mirror the terminal failure onto the invoice so the UI reflects it; the
+    # invoice may be absent if it was deleted, in which case only the job fails.
     if invoice is not None:
         invoice.status = InvoiceStatus.FAILED.value
         event = processing_job_status_changed_event(

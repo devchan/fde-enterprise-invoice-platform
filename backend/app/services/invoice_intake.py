@@ -1,3 +1,7 @@
+"""Invoice intake: create invoice records, persist uploaded files, and enqueue
+the extraction pipeline. Guards against duplicate invoice numbers and duplicate
+file uploads, and keeps blob storage and the database consistent on failure."""
+
 from dataclasses import dataclass
 from decimal import Decimal
 from hashlib import sha256
@@ -33,10 +37,12 @@ from app.services.processing_jobs import (
 )
 
 
+# Raised when the same invoice number already exists for a supplier/org pair.
 class DuplicateInvoiceError(ValueError):
     pass
 
 
+# Raised when the same file content (by checksum) was already uploaded for the org.
 class DuplicateInvoiceUploadError(ValueError):
     pass
 
@@ -91,6 +97,8 @@ def create_invoice_metadata(
     request_id: str | None = None,
 ) -> InvoiceIntakeResult:
     _ensure_supplier_belongs_to_organization(db, payload)
+    # Cheap pre-check for a friendly error; the unique constraint below is the
+    # authoritative guard against concurrent inserts racing past this check.
     if _invoice_number_exists(db, payload):
         raise DuplicateInvoiceError("Invoice number already exists for this supplier and organization.")
 
@@ -109,6 +117,8 @@ def create_invoice_metadata(
     try:
         db.flush()
     except IntegrityError as exc:
+        # Two concurrent uploads can both pass the pre-check; translate the DB
+        # constraint violation into the same domain error the caller expects.
         db.rollback()
         if "uq_invoice_org_supplier_number" in str(exc.orig):
             raise DuplicateInvoiceError("Invoice number already exists for this supplier and organization.") from exc
@@ -150,12 +160,14 @@ def create_invoice_upload(
     *,
     request_id: str | None = None,
 ) -> InvoiceIntakeResult:
+    # Reject malformed/oversized files before touching the DB or blob store.
     file_result = validate_invoice_file(
         filename=payload.filename,
         mime_type=payload.mime_type,
         file_size=len(payload.content),
         max_bytes=settings.invoice_upload_max_bytes,
     )
+    # Content hash detects re-uploads of identical files across the org.
     checksum = sha256(payload.content).hexdigest()
 
     if _invoice_checksum_exists(db, payload.organization_id, checksum):
@@ -200,6 +212,9 @@ def create_invoice_upload(
         extension=file_result.extension,
     )
 
+    # Blob write, file/job rows, status transition and audit trail must land
+    # together: on any failure we roll back the DB and delete the orphaned blob
+    # so storage never drifts from the database.
     try:
         store_invoice_file(storage_key=storage_key, content=payload.content)
         processing_job = build_invoice_extraction_job(invoice.id)
@@ -280,6 +295,8 @@ def create_invoice_upload(
         raise
 
     db.refresh(invoice)
+    # Enqueue only after the commit succeeds so a worker can never pick up a job
+    # whose invoice row was rolled back.
     enqueue_processing_job(Redis.from_url(settings.redis_url), processing_job.id)
     return InvoiceIntakeResult(
         invoice_id=invoice.id,
@@ -347,6 +364,8 @@ def change_invoice_status(
 
 
 def _invoice_number_exists(db: Session, payload: InvoiceIntakePayload) -> bool:
+    # A NULL supplier needs `IS NULL` rather than `= NULL` (which is never true
+    # in SQL), so uniqueness is scoped correctly for supplier-less invoices.
     supplier_clause = (
         Invoice.supplier_id.is_(None)
         if payload.supplier_id is None

@@ -1,3 +1,6 @@
+# Re-export every model from one place. Importing this package registers all
+# mappers with SQLAlchemy so string-based relationship references resolve and
+# metadata (e.g. for migrations/create_all) is complete.
 from app.models.audit import AuditLog
 from app.models.invoice import (
     Invoice,

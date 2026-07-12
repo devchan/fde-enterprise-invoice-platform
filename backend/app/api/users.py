@@ -1,3 +1,6 @@
+"""User administration endpoints: listing, creating, updating users, and
+password management. Admin-only except for the self-service password change."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, status
@@ -40,6 +43,8 @@ class UserListResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     role: str = Field(min_length=1, max_length=50)
+    # 12-char floor mirrors the password policy enforced in services/passwords.py;
+    # validated here too so weak input is rejected before hitting the service.
     password: str = Field(min_length=12, max_length=256)
 
 
@@ -53,6 +58,8 @@ class SetPasswordRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
+    # current_password only needs to be non-empty (it's verified, not created);
+    # new_password must satisfy the full length policy.
     current_password: str = Field(min_length=1, max_length=256)
     new_password: str = Field(min_length=12, max_length=256)
 
@@ -94,6 +101,8 @@ def create_user_record(
     return _to_user_response(user)
 
 
+# Self-service: any authenticated user may change their own password, so this
+# route uses get_current_user rather than the admin-only require_roles guard.
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 def change_current_user_password(
     payload: ChangePasswordRequest,
@@ -147,6 +156,8 @@ def update_user_record(
     except UserAlreadyExistsError as exc:
         raise conflict_error("user_duplicate", str(exc), request_id=request_id) from exc
     except LastAdminRoleError as exc:
+        # Guards against demoting the org's only admin, which would lock the
+        # organization out of all admin-only operations.
         raise conflict_error("last_admin_required", str(exc), request_id=request_id) from exc
     except UserAdminError as exc:
         raise conflict_error("user_invalid", str(exc), request_id=request_id) from exc

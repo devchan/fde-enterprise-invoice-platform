@@ -9,6 +9,7 @@ import {
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
 
+// Generic client-side-sorted table shared by every list view (invoices, jobs, users, audit).
 export function DataTable<TData>({
   columns,
   data,
@@ -18,6 +19,7 @@ export function DataTable<TData>({
   data: TData[];
   emptyMessage: string;
 }) {
+  // Sorting is held locally; the full dataset is already in memory so no server round-trip.
   const [sorting, setSorting] = useState<SortingState>([]);
   const table = useReactTable({
     columns,
@@ -62,6 +64,7 @@ export function DataTable<TData>({
           ))}
         </thead>
         <tbody>
+          {/* Span all columns so the empty-state message fills the table width. */}
           {table.getRowModel().rows.length === 0 ? (
             <tr>
               <td className="table-empty" colSpan={columns.length}>

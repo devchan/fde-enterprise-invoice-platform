@@ -26,6 +26,7 @@ export function ReviewPanel({
   onSelect: (invoiceId: string) => void;
   selectedInvoice: InvoiceDetail | null;
 }) {
+  // Defined inside the component so the invoice-number cell can close over onSelect.
   const invoiceColumns: ColumnDef<InvoiceDetail>[] = [
     {
       accessorKey: "invoice_number",
@@ -87,11 +88,14 @@ export function ReviewPanel({
             <form
               className="mt-5 grid gap-4 md:grid-cols-2"
               onSubmit={(event) => {
+                // One form, two submit buttons: read the clicked button's value to
+                // decide approve vs reject (default to approve if the submitter is unknown).
                 const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
                 const decision = submitter?.value === "reject" ? "reject" : "approve";
                 onReview(decision, event);
               }}
             >
+              {/* Prefilled with the extracted values so reviewers edit-in-place to correct them. */}
               <Field label="Invoice number" name="invoice_number" defaultValue={selectedInvoice.invoice_number} />
               <Field label="Invoice date" name="invoice_date" type="date" defaultValue={selectedInvoice.invoice_date || ""} />
               <Field label="Total amount" name="total_amount" type="number" step="0.01" defaultValue={selectedInvoice.total_amount || ""} />
@@ -152,6 +156,7 @@ function DetailSections({ invoice, busy, onOpenFile }: { invoice: InvoiceDetail;
           </div>
         ))}
       </DataBlock>
+      {/* Raw model output shown verbatim so reviewers can audit what the extractor produced. */}
       <DataBlock title="Extraction">
         <pre className="max-h-60 overflow-auto rounded bg-muted p-3 text-xs">
           {JSON.stringify(invoice.latest_extraction?.extracted_payload || {}, null, 2)}

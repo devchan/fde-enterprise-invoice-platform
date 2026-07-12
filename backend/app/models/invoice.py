@@ -1,3 +1,6 @@
+"""Invoice model and its child records (files, line items, extractions,
+validation results, reviews) that together capture an invoice's lifecycle."""
+
 from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -12,6 +15,8 @@ from app.models.common import TimestampMixin
 
 class Invoice(TimestampMixin, Base):
     __tablename__ = "invoices"
+    # Guards against ingesting the same invoice twice: a supplier's invoice
+    # number must be unique within an organization.
     __table_args__ = (
         UniqueConstraint(
             "organization_id",
@@ -23,13 +28,17 @@ class Invoice(TimestampMixin, Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    # Nullable: an uploaded invoice may not be matched to a supplier yet.
     supplier_id: Mapped[UUID | None] = mapped_column(ForeignKey("suppliers.id"))
     uploaded_by: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Financial fields stay null until extraction populates them from the file.
     invoice_date: Mapped[date | None] = mapped_column(Date)
     total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     currency: Mapped[str] = mapped_column(String(3), default="USD")
+    # Workflow state (see InvoiceStatus); indexed for status-filtered listings.
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="uploaded", index=True)
+    # Checksum of the uploaded file, indexed to detect duplicate uploads.
     file_checksum: Mapped[str | None] = mapped_column(String(128), index=True)
 
     organization: Mapped["Organization"] = relationship(back_populates="invoices")
@@ -43,11 +52,14 @@ class Invoice(TimestampMixin, Base):
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="invoice")
 
 
+# The uploaded document(s) for an invoice. The bytes live in object storage;
+# only the pointer (storage_key) and metadata are kept in the database.
 class InvoiceFile(TimestampMixin, Base):
     __tablename__ = "invoice_files"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     invoice_id: Mapped[UUID] = mapped_column(ForeignKey("invoices.id"), nullable=False)
+    # Object-storage locator (e.g. S3 key), resolved to bytes on download.
     storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
     file_size: Mapped[int] = mapped_column(nullable=False)
@@ -68,6 +80,8 @@ class InvoiceLineItem(TimestampMixin, Base):
     invoice: Mapped[Invoice] = relationship(back_populates="line_items")
 
 
+# One row per LLM extraction attempt: the structured payload plus the model,
+# prompt version, confidence, and token/cost accounting used to produce it.
 class InvoiceExtraction(TimestampMixin, Base):
     __tablename__ = "invoice_extractions"
 
@@ -76,8 +90,10 @@ class InvoiceExtraction(TimestampMixin, Base):
     prompt_version_id: Mapped[UUID | None] = mapped_column(ForeignKey("prompt_versions.id"))
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Raw structured output from the model, stored as JSONB for flexible schema.
     extracted_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     confidence_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    # Token counts and estimated cost let us track/attribute LLM spend per run.
     input_tokens: Mapped[int | None]
     output_tokens: Mapped[int | None]
     estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
@@ -86,6 +102,8 @@ class InvoiceExtraction(TimestampMixin, Base):
     prompt_version_record: Mapped["PromptVersion | None"] = relationship(back_populates="extractions")
 
 
+# Outcome of a single validation rule against an invoice; `passed` plus
+# `severity` drive whether the invoice can advance or needs human review.
 class InvoiceValidationResult(TimestampMixin, Base):
     __tablename__ = "invoice_validation_results"
 
@@ -99,6 +117,8 @@ class InvoiceValidationResult(TimestampMixin, Base):
     invoice: Mapped[Invoice] = relationship(back_populates="validation_results")
 
 
+# A human reviewer's decision on an invoice, including any field corrections
+# they applied (stored as JSONB so the correction shape can vary).
 class InvoiceReview(TimestampMixin, Base):
     __tablename__ = "invoice_reviews"
 

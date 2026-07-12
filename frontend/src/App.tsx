@@ -39,6 +39,9 @@ export function App() {
     actions,
   } = useCockpitController();
 
+  // All app state and side effects live in the controller hook; this component is
+  // purely presentational. Each tab below applies the same gate cascade:
+  // signed in? -> has the required role? -> render panel, else a sign-in/access notice.
   return (
     <main className="min-h-screen bg-background">
       <header className="border-b border-border bg-white">

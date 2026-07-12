@@ -46,6 +46,7 @@ export function useCockpitController() {
     }
   }
 
+  // React to identity changes: cache identity + load data on sign-in, purge on sign-out.
   useEffect(() => {
     if (session) {
       SessionStore.write(session);
@@ -55,6 +56,7 @@ export function useCockpitController() {
     }
   }, [session]);
 
+  // Depends on the full `invoices` array (not just length) because status counts change without length changing.
   const dashboardStats = useMemo(
     () => [
       { label: "Loaded invoices", value: invoices.length.toString() },
@@ -65,6 +67,7 @@ export function useCockpitController() {
     [auditLogs.length, failedJobs.length, invoices],
   );
 
+  // Wraps every authenticated call so a SessionExpiredError uniformly tears down the session.
   async function withSessionHandling<T>(request: () => Promise<T>): Promise<T> {
     try {
       return await request();
@@ -89,6 +92,8 @@ export function useCockpitController() {
     if (!activeSession) return;
     setInitializing(true);
     try {
+      // Invoices are the primary view, so load them first; the rest fan out in
+      // parallel with allSettled so one endpoint failing does not block the others.
       await loadInvoices(activeSession);
       await Promise.allSettled([
         loadFailedJobs(activeSession),
@@ -171,6 +176,7 @@ export function useCockpitController() {
     if (!userCanUpload) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    // Drop blank optional fields so the backend sees them as absent rather than empty strings.
     for (const key of ["supplier_id", "total_amount"]) {
       if (!String(form.get(key) || "").trim()) form.delete(key);
     }
@@ -195,6 +201,7 @@ export function useCockpitController() {
     const form = new FormData(event.currentTarget);
     setBusy(`review:${decision}`);
     try {
+      // Only send fields the reviewer actually changed; blanks collapse to undefined and are omitted.
       const correctedFields = {
         invoice_number: emptyToUndefined(form.get("invoice_number")),
         invoice_date: emptyToUndefined(form.get("invoice_date")),
@@ -265,6 +272,7 @@ export function useCockpitController() {
   async function filterAuditLogs(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    // Build the query from only the filled filter inputs; omitted keys mean "no filter".
     const params = new URLSearchParams({ limit: "50" });
     for (const key of ["entity_type", "entity_id", "action"]) {
       const value = String(form.get(key) || "").trim();
@@ -325,6 +333,7 @@ export function useCockpitController() {
           role: String(form.get("role") || user.role),
         }),
       );
+      // If admins edit their own record, mirror the change into the live session immediately.
       if (session?.user_id === updated.user_id) {
         setSession({ ...session, email: updated.email, role: updated.role });
       }

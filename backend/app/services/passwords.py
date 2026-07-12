@@ -1,8 +1,16 @@
+"""Password hashing and verification using PBKDF2-HMAC-SHA256.
+
+Avoids a third-party dependency (bcrypt/argon2) by using the stdlib primitives;
+the stored hash string is self-describing so parameters can evolve over time.
+"""
+
 import base64
 import hashlib
 import hmac
 import secrets
 
+# OWASP-recommended iteration count for PBKDF2-SHA256; stored in each hash so
+# existing hashes keep verifying if this constant is later raised.
 PBKDF2_ALGORITHM = "pbkdf2_sha256"
 PBKDF2_ITERATIONS = 390_000
 SALT_BYTES = 16
@@ -14,8 +22,12 @@ class PasswordHashError(ValueError):
 
 def hash_password(password: str) -> str:
     _validate_password(password)
+    # Fresh random salt per password so identical passwords hash differently.
     salt = secrets.token_bytes(SALT_BYTES)
     digest = _pbkdf2(password=password, salt=salt, iterations=PBKDF2_ITERATIONS)
+    # Encode algorithm, iterations, salt and digest into one "$"-delimited,
+    # self-describing string so verify_password can re-derive the hash without
+    # any out-of-band parameter storage.
     return "$".join(
         [
             PBKDF2_ALGORITHM,
@@ -40,7 +52,10 @@ def verify_password(password: str, password_hash: str | None) -> bool:
     except (ValueError, TypeError):
         return False
 
+    # Re-derive using the iteration count stored in the hash (not the current
+    # constant) so older hashes still verify after the constant is raised.
     supplied_digest = _pbkdf2(password=password, salt=salt, iterations=iterations)
+    # Constant-time comparison to avoid leaking digest bytes via timing.
     return hmac.compare_digest(supplied_digest, expected_digest)
 
 

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Field } from "../../components/common/Field";
 import type { LoginCredentials } from "../../app/useCockpitController";
 
+// Client-side validation for immediate feedback; the server still authoritatively
+// validates credentials. Only checks shape here (valid email, non-empty password).
 const signInSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),

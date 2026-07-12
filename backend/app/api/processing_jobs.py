@@ -1,3 +1,5 @@
+"""Endpoints for inspecting and requeueing background invoice-processing jobs."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, status
@@ -72,9 +74,13 @@ def reprocess_job(
     processing_job_id: UUID,
     payload: ProcessingJobReprocessRequest,
     db: Session = Depends(get_db),
+    # Reprocessing mutates state and consumes AI budget, so it's gated to
+    # admins/reviewers, unlike the read endpoints open to any authenticated user.
     current_user: User = Depends(require_roles("admin", "reviewer")),
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> ProcessingJobResponse:
+    # Reprocessing re-enqueues onto the same Redis queue the worker consumes,
+    # so the handler needs a client to push the job back for a fresh attempt.
     redis_client = Redis.from_url(settings.redis_url)
     try:
         job = requeue_processing_job(

@@ -1,3 +1,5 @@
+"""API response schemas for audit-log endpoints."""
+
 from datetime import datetime
 from typing import Any
 from uuid import UUID

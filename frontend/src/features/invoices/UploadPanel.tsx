@@ -11,6 +11,7 @@ export function UploadPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (even
         <Field label="Currency" name="currency" defaultValue="USD" minLength={3} maxLength={3} required />
         <Field label="Supplier ID" name="supplier_id" placeholder="Optional UUID" />
         <Field label="Total amount" name="total_amount" type="number" step="0.01" min="0" />
+        {/* accept limits the picker to the document types the extraction pipeline supports. */}
         <label className="field md:col-span-2">
           <span>Invoice file</span>
           <input name="file" required type="file" accept="application/pdf,image/png,image/jpeg" />

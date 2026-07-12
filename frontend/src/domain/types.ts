@@ -29,6 +29,8 @@ export type InvoiceFile = {
 export type InvoiceLineItem = {
   line_item_id: string;
   description: string;
+  // Monetary/quantity values arrive as strings to preserve exact decimal precision
+  // (avoiding JS float rounding); null when the extractor could not determine them.
   quantity: string | null;
   unit_price: string | null;
   line_total: string | null;
@@ -103,4 +105,5 @@ export type UserRecord = {
   role: string;
 };
 
+// Stable identifiers for the cockpit tabs; drives both navigation and RBAC gating.
 export type TabKey = "overview" | "upload" | "review" | "failed" | "audit" | "users";

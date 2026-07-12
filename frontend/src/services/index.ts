@@ -6,6 +6,7 @@ import { InvoiceService } from "./invoice-service";
 import { ProcessingJobService } from "./processing-job-service";
 import { UserService } from "./user-service";
 
+// Composition root: one ApiClient shared by every service so refresh/auth handling is centralized.
 export const apiClient = new ApiClient(API_BASE_URL);
 export const authService = new AuthService(apiClient);
 export const invoiceService = new InvoiceService(apiClient);

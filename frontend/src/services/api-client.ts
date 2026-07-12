@@ -1,5 +1,7 @@
 import type { ApiError, Session } from "../domain/types";
 
+// Sentinel thrown when a request fails auth even after a refresh attempt, so the
+// controller can distinguish "sign in again" from a generic API error.
 export class SessionExpiredError extends Error {
   constructor() {
     super("session_expired");
@@ -11,12 +13,14 @@ const REFRESH_PATH = "/api/v1/auth/refresh";
 export class ApiClient {
   constructor(private readonly baseUrl: string) {}
 
+  // Public entry point; allowRefresh starts true so the first 401 can trigger one silent refresh.
   async request<T>(path: string, init: RequestInit = {}, session: Session | null = null): Promise<T> {
     return this.send<T>(path, init, session, true);
   }
 
   private async send<T>(path: string, init: RequestInit, session: Session | null, allowRefresh: boolean): Promise<T> {
     const headers = new Headers(init.headers);
+    // Let the browser set the multipart boundary for FormData; only JSON needs an explicit type.
     if (!(init.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }

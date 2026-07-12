@@ -1,3 +1,9 @@
+"""Validation of uploaded invoice files before they are accepted for storage.
+
+Uses strict allowlists for both extension and MIME type (rather than blocking
+known-bad values) so anything unexpected is rejected by default.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +51,8 @@ def validate_invoice_file(
         raise InvalidInvoiceFileError("Invoice file exceeds the maximum allowed size.")
 
     return InvoiceFileValidationResult(
+        # Strip any directory components from the client-supplied name to guard
+        # against path traversal; only the bare basename is retained.
         filename=Path(filename).name,
         extension=extension,
         mime_type=mime_type,

@@ -1,3 +1,7 @@
+"""Pure business rules for validating an extracted invoice. Each rule yields a
+pass/fail result with a severity; a single failing rule (of any severity) routes
+the invoice to human review. Kept side-effect-free so it is trivially testable."""
+
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -57,6 +61,9 @@ def validate_invoice(payload: InvoiceValidationInput) -> list[InvoiceValidationR
             message="Invoice total amount is required.",
             passed=payload.total_amount is not None,
         ),
+        # "warning" rules still block auto-approval (see next_status_after_validation)
+        # but flag judgement calls — large amounts and low-confidence extractions —
+        # rather than hard data errors.
         InvoiceValidationResult(
             rule_code="approval_threshold",
             severity="warning",
@@ -76,6 +83,8 @@ def validate_invoice(payload: InvoiceValidationInput) -> list[InvoiceValidationR
 
 
 def next_status_after_validation(results: list[InvoiceValidationResult]) -> InvoiceStatus:
+    # Auto-pass only when every rule passes; any failure (error or warning)
+    # sends the invoice to the review queue.
     if all(result.passed for result in results):
         return InvoiceStatus.VALIDATION_PASSED
 
@@ -95,6 +104,8 @@ def _validate_line_items(line_items: tuple[InvoiceLineItemInput, ...]) -> list[I
             )
         )
 
+        # Can only cross-check the arithmetic when all three figures are present;
+        # a missing field is validated by other rules, not here.
         if item.quantity is None or item.unit_price is None or item.line_total is None:
             continue
 

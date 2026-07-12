@@ -7,6 +7,7 @@ export function Toast({
   onClose: () => void;
   tone: "ok" | "error" | "info";
 }) {
+  // Errors get assertive alert semantics so screen readers interrupt; other tones are polite.
   return (
     <div
       className={`toast toast-${tone}`}

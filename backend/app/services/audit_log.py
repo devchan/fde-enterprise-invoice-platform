@@ -1,3 +1,10 @@
+"""Factory functions that build :class:`AuditEvent` value objects.
+
+Centralising every audit event here keeps action names and metadata shapes
+consistent across the codebase (callers never hand-write the ``action`` string),
+which is what downstream audit querying and compliance reporting rely on.
+"""
+
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -12,6 +19,8 @@ class AuditEvent:
     entity_type: str
     entity_id: UUID
     action: str
+    # Stamped at construction in UTC so an event's time reflects when it happened,
+    # independent of when the row is eventually committed.
     occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -160,6 +169,8 @@ def invoice_review_corrections_saved_event(
         entity_id=invoice_id,
         action="invoice.review_corrections_saved",
         metadata={
+            # Log only which fields changed, not their values, to keep
+            # potentially sensitive invoice data out of the audit trail.
             "corrected_fields": sorted(corrected_fields.keys()),
         },
     )

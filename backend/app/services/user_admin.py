@@ -1,3 +1,9 @@
+"""Organization-scoped user management (create, update, password changes).
+
+Every mutation is written together with an audit log row in the same
+transaction, so the user table and its audit trail can never diverge.
+"""
+
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -74,6 +80,8 @@ def create_user(
         password_hash=hash_password(payload.password),
     )
     db.add(user)
+    # Flush to assign the generated primary key so the audit event can reference
+    # the new user's id before the transaction commits.
     db.flush()
     _add_user_audit(
         db,
@@ -115,6 +123,8 @@ def update_user(
             changes["role"] = role
             user.role = role
 
+    # Only touch the DB / write an audit event when something actually changed,
+    # so a no-op update stays a true no-op.
     if changes:
         _add_user_audit(
             db,
@@ -164,6 +174,8 @@ def change_own_password(
     new_password: str,
     request_id: str | None = None,
 ) -> None:
+    # Self-service change requires proving knowledge of the current password;
+    # admin-initiated resets (set_user_password) deliberately skip this check.
     if not verify_password(current_password, user.password_hash):
         raise InvalidCurrentPasswordError("Current password is invalid.")
 
@@ -181,6 +193,8 @@ def change_own_password(
 
 
 def _get_user_for_org(db: Session, *, organization_id: UUID, user_id: UUID) -> User:
+    # Match on org as well as id so callers can never load or mutate a user
+    # belonging to a different tenant.
     user = db.scalar(
         select(User)
         .where(User.id == user_id)
@@ -192,6 +206,7 @@ def _get_user_for_org(db: Session, *, organization_id: UUID, user_id: UUID) -> U
 
 
 def _ensure_email_available(db: Session, *, email: str) -> None:
+    # Email is unique globally (not per-org) since it is the login identifier.
     if db.scalar(select(User.id).where(User.email == email)) is not None:
         raise UserAlreadyExistsError("User email already exists.")
 
@@ -211,9 +226,12 @@ def _normalize_role(role: str) -> str:
 
 
 def _ensure_not_last_admin_demoted(db: Session, *, user: User, new_role: str) -> None:
+    # Only relevant when demoting an existing admin; anything else is safe.
     if user.role != "admin" or new_role == "admin":
         return
 
+    # Block removing the final admin so an organization can never be left with
+    # nobody able to administer it (permanent lockout).
     admin_count = db.scalar(
         select(func.count(User.id))
         .where(User.organization_id == user.organization_id)

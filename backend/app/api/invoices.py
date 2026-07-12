@@ -1,3 +1,11 @@
+"""Invoice HTTP API: intake (metadata-only and file upload), retrieval, review,
+status transitions, and signed file downloads.
+
+Route handlers stay thin — they translate request/response models and map
+service-layer exceptions onto the platform's error envelope, while all business
+logic lives in app.services.invoice_*.
+"""
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -59,6 +67,8 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 @router.get("", response_model=InvoiceListResponse)
 def list_invoice_records(
+    # `status` is exposed as the query param but bound to status_filter to avoid
+    # shadowing the imported fastapi `status` module used for HTTP codes.
     status_filter: InvoiceStatus | None = Query(default=None, alias="status"),
     review_queue: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=200),
@@ -79,10 +89,13 @@ def list_invoice_records(
     )
 
 
+# Metadata-only intake: records an invoice without a file (and without queuing
+# extraction). The file-bearing counterpart is the /upload endpoint below.
 @router.post("", response_model=InvoiceCreateResponse, status_code=status.HTTP_201_CREATED)
 def create_invoice(
     payload: InvoiceCreateRequest,
     db: Session = Depends(get_db),
+    # Creating invoices is limited to admins and uploaders.
     current_user: User = Depends(require_roles("admin", "uploader")),
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> InvoiceCreateResponse:
@@ -90,6 +103,8 @@ def create_invoice(
         result = create_invoice_metadata(
             db,
             InvoiceIntakePayload(
+                # Tenant and actor are always taken from the authenticated user,
+                # never from client input, to prevent cross-organization writes.
                 organization_id=current_user.organization_id,
                 supplier_id=payload.supplier_id,
                 uploaded_by=current_user.id,
@@ -125,10 +140,15 @@ def create_invoice(
     )
 
 
+# Full intake: stores the uploaded file, persists metadata, and queues the
+# extraction job. This is the endpoint the rate limiter guards (see rate_limit).
 @router.post("/upload", response_model=InvoiceCreateResponse, status_code=status.HTTP_201_CREATED)
 async def upload_invoice(
     invoice_number: str = Form(...),
     file: UploadFile = File(...),
+    # organization_id/uploaded_by are accepted as form fields for backward
+    # compatibility but deliberately ignored below in favor of the authenticated
+    # user's identity — a client cannot upload on behalf of another tenant/user.
     organization_id: UUID | None = Form(default=None),
     uploaded_by: UUID | None = Form(default=None),
     supplier_id: UUID | None = Form(default=None),
@@ -139,10 +159,13 @@ async def upload_invoice(
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> InvoiceCreateResponse:
     try:
+        # Read the whole upload into memory once; downstream validation and
+        # storage both need the raw bytes (and the checksum computed from them).
         content = await file.read()
         result = create_invoice_upload(
             db,
             InvoiceUploadPayload(
+                # Identity comes from the token, not the ignored form fields above.
                 organization_id=current_user.organization_id,
                 supplier_id=supplier_id,
                 uploaded_by=current_user.id,
@@ -194,6 +217,10 @@ async def upload_invoice(
     )
 
 
+# Two-step download: this authenticated endpoint mints a short-lived, HMAC-signed
+# URL, and the /download endpoint below serves the bytes for that URL. Splitting
+# them lets the actual file fetch be authorized by the signature alone, so the
+# link can be handed to a browser/<img> tag without exposing the auth token.
 @router.get(
     "/{invoice_id}/files/{file_id}/download-url",
     response_model=InvoiceFileDownloadUrlResponse,
@@ -222,11 +249,15 @@ def create_invoice_file_download_url(
             request_id=request_id,
         ) from exc
 
+    # Sign against the resolved storage_key (not just the ids) so a tampered or
+    # mismatched key cannot be smuggled into the download endpoint.
     signed_download = sign_invoice_file_download(
         invoice_id=invoice_id,
         file_id=file_id,
         storage_key=invoice_file.storage_key,
     )
+    # Build an absolute URL to download_invoice_file with expiry+signature baked
+    # into the query string; url_for resolves the route by its function name.
     download_url = str(
         request.url_for(
             "download_invoice_file",
@@ -244,6 +275,8 @@ def create_invoice_file_download_url(
     )
 
 
+# Note: no auth dependency here — the request is authorized purely by the valid,
+# unexpired signature minted above, which is why the signed key check matters.
 @router.get("/{invoice_id}/files/{file_id}/download")
 def download_invoice_file(
     invoice_id: UUID,
@@ -323,6 +356,7 @@ def review_invoice(
     invoice_id: UUID,
     payload: InvoiceReviewRequest,
     db: Session = Depends(get_db),
+    # Reviewing (approve/reject/correct) is limited to admins and reviewers.
     current_user: User = Depends(require_roles("admin", "reviewer")),
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> InvoiceDetailResponse:
@@ -336,6 +370,9 @@ def review_invoice(
                 decision=payload.decision,
                 notes=payload.notes,
                 corrected_fields=payload.corrected_fields,
+                # Optimistic-concurrency token: the service rejects the review
+                # (InvoiceReviewConflictError) if the invoice changed since the
+                # client loaded it, preventing lost updates between reviewers.
                 expected_updated_at=payload.expected_updated_at,
             ),
             request_id=request_id,
@@ -375,6 +412,7 @@ def transition_invoice(
     invoice_id: UUID,
     payload: InvoiceStatusTransitionRequest,
     db: Session = Depends(get_db),
+    # Direct status overrides bypass the normal workflow, so they're admin-only.
     current_user: User = Depends(require_roles("admin")),
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> InvoiceStatusTransitionResponse:
@@ -396,6 +434,7 @@ def transition_invoice(
             request_id=request_id,
         ) from exc
     except ValueError as exc:
+        # Illegal transitions surface from the workflow as ValueError; map to 409.
         raise conflict_error(
             "invoice_status_transition_invalid",
             str(exc),
@@ -411,7 +450,11 @@ def transition_invoice(
     )
 
 
+# Shared serializer that flattens an Invoice ORM row (plus its related files,
+# line items, extractions, validation results, and reviews) into the API model.
 def _to_detail_response(invoice) -> InvoiceDetailResponse:
+    # An invoice may accumulate several extraction attempts (e.g. reprocessing);
+    # expose only the most recent one as the "current" extraction.
     latest_extraction = (
         max(invoice.extractions, key=lambda extraction: extraction.created_at)
         if invoice.extractions

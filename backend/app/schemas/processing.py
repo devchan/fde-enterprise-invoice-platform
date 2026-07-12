@@ -1,3 +1,5 @@
+"""API request/response schemas for processing-job endpoints."""
+
 from uuid import UUID
 
 from pydantic import BaseModel, Field

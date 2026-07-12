@@ -1,3 +1,8 @@
+"""Human review of extracted invoices: list/fetch invoices for the review
+queue, apply reviewer corrections, and record approve/reject decisions with a
+full audit trail. Uses row locking plus an optimistic-concurrency check so two
+reviewers cannot clobber each other's edits."""
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -50,6 +55,8 @@ class InvoiceReviewPayload:
     expected_updated_at: datetime | None = None
 
 
+# Whitelist of invoice fields a reviewer may overwrite; anything else in the
+# corrections payload is rejected to prevent editing unintended columns.
 SUPPORTED_CORRECTED_FIELDS = {
     "invoice_number",
     "invoice_date",
@@ -101,6 +108,8 @@ def submit_invoice_review(
     payload: InvoiceReviewPayload,
     request_id: str | None = None,
 ) -> Invoice:
+    # Lock the row for the duration of the transaction so a concurrent review
+    # cannot interleave between the conflict check and the status update.
     invoice = db.scalar(
         _invoice_detail_query()
         .where(Invoice.id == invoice_id)
@@ -110,6 +119,8 @@ def submit_invoice_review(
     if invoice is None:
         raise InvoiceNotFoundError("Invoice was not found.")
 
+    # Optimistic-concurrency guard: reject the review if the invoice changed
+    # since the reviewer loaded it (they'd be acting on stale data).
     if payload.expected_updated_at is not None and not _same_instant(invoice.updated_at, payload.expected_updated_at):
         raise InvoiceReviewConflictError("Invoice was changed after the reviewer loaded it.")
 
@@ -135,6 +146,8 @@ def submit_invoice_review(
     try:
         db.flush()
     except IntegrityError as exc:
+        # A corrected invoice_number may collide with an existing one; surface
+        # that as a duplicate error rather than a raw DB failure.
         db.rollback()
         _raise_duplicate_invoice_if_applicable(exc)
         raise
@@ -177,6 +190,8 @@ def submit_invoice_review(
 
 
 def _invoice_detail_query():
+    # Eager-load every child relationship up front so the API can serialize the
+    # full invoice without triggering N+1 lazy loads.
     return select(Invoice).options(
         selectinload(Invoice.files),
         selectinload(Invoice.line_items),
@@ -214,6 +229,8 @@ def _replace_line_items(db: Session, *, invoice: Invoice, line_items: Any) -> No
     if not isinstance(line_items, list):
         raise InvoiceReviewError("Corrected line_items must be a list.")
 
+    # Full replace rather than diff/merge: clear the existing line items and
+    # rebuild from the corrected set so the stored rows match exactly.
     db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).delete(synchronize_session=False)
     for raw_item in line_items:
         if not isinstance(raw_item, dict):
@@ -247,6 +264,8 @@ def _parse_date(value: Any) -> date | None:
 
 
 def _same_instant(left: datetime, right: datetime) -> bool:
+    # Compare via ISO strings so the client can round-trip the timestamp it
+    # received verbatim, sidestepping microsecond/tzinfo representation quirks.
     return left.isoformat() == right.isoformat()
 
 

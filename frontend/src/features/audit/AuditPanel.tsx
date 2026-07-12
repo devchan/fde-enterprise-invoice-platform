@@ -7,6 +7,7 @@ import { PanelHeader } from "../../components/common/PanelHeader";
 import type { AuditLog } from "../../domain/types";
 import { formatDate, shortId } from "../../utils/format";
 
+// Static columns (no row callbacks) so they live at module scope, not re-created per render.
 const auditColumns: ColumnDef<AuditLog>[] = [
   {
     accessorKey: "action",

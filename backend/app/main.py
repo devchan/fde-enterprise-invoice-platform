@@ -1,3 +1,6 @@
+"""FastAPI application factory: wires middleware, exception handlers, routes,
+and tracing into a single app instance for both the API server and tests."""
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,12 +16,17 @@ from app.middleware.request_logging import RequestLoggingMiddleware
 
 
 def create_app() -> FastAPI:
+    # Configure structured logging before anything emits logs during startup.
     configure_logging()
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
         description="Enterprise AI invoice processing platform.",
     )
+    # Starlette runs middleware in reverse registration order, so the last one
+    # added is outermost. Registering request logging after the rate limiter
+    # makes logging the outer layer: every request (including rejected ones) is
+    # logged with its request-id context before the rate limiter inspects it.
     app.add_middleware(UploadRateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
@@ -28,10 +36,13 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
+    # Normalize all error responses into the platform's `{"error": {...}}` shape:
+    # HTTP errors, request-validation (422) failures, and unhandled exceptions.
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(api_router)
+    # Instrument the fully assembled app so tracing wraps all routes/middleware.
     configure_tracing(app)
     return app
 

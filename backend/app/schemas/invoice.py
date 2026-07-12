@@ -1,3 +1,6 @@
+"""API request/response schemas for invoice endpoints (upload, listing,
+detail, status transitions, and human review)."""
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -10,6 +13,8 @@ from app.services.invoice_workflow import InvoiceStatus
 
 
 class InvoiceCreateRequest(BaseModel):
+    # organization_id/uploaded_by are optional here because the API fills them
+    # from the authenticated user rather than trusting client-supplied values.
     organization_id: UUID | None = None
     supplier_id: UUID | None = None
     uploaded_by: UUID | None = None
@@ -120,4 +125,6 @@ class InvoiceReviewRequest(BaseModel):
     decision: ReviewDecision
     notes: str | None = None
     corrected_fields: dict[str, Any] = Field(default_factory=dict)
+    # Optimistic-concurrency token: if set, the review is rejected when the
+    # invoice was modified since the client last read it (lost-update guard).
     expected_updated_at: datetime | None = None

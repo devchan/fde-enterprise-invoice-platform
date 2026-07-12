@@ -1,3 +1,8 @@
+"""Invoice field extraction: turn an uploaded document into structured fields
+via an LLM, validate the response against a strict schema, then persist the
+extraction, line items and validation results. Ships a deterministic
+development extractor so the pipeline runs without an OpenAI API key."""
+
 import base64
 import json
 from dataclasses import dataclass
@@ -31,6 +36,8 @@ class ExtractedInvoiceLineItem(BaseModel):
 
 
 class ExtractedInvoicePayload(BaseModel):
+    # extra="forbid" makes the model reject any field the LLM invents, so the
+    # strict JSON schema and our parsing stay in lockstep.
     model_config = ConfigDict(extra="forbid")
 
     invoice_number: str | None = None
@@ -60,6 +67,8 @@ class ExtractionError(RuntimeError):
     pass
 
 
+# Transient failures (timeouts, rate limits) are safe to retry; the worker
+# distinguishes this from permanent ExtractionError to decide whether to requeue.
 class TransientExtractionError(ExtractionError):
     pass
 
@@ -69,6 +78,8 @@ class InvalidExtractionResponseError(ExtractionError):
 
 
 class DevelopmentInvoiceExtractor:
+    # Deterministic stand-in used when no OpenAI key is configured: echoes the
+    # invoice's known fields so the rest of the pipeline can be exercised locally.
     model_name = "development-extractor"
 
     def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
@@ -97,6 +108,8 @@ class OpenAIInvoiceExtractor:
         self.model_name = model_name
 
     def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+        # Import lazily so the OpenAI SDK is only required when this extractor
+        # is actually selected, keeping it an optional dependency.
         try:
             from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
         except ImportError as exc:
@@ -128,6 +141,8 @@ class OpenAIInvoiceExtractor:
                         ],
                     }
                 ],
+                # Constrain the model to our Pydantic-derived schema so the
+                # response is guaranteed-parseable JSON, not free-form text.
                 text={
                     "format": {
                         "type": "json_schema",
@@ -138,6 +153,8 @@ class OpenAIInvoiceExtractor:
                     }
                 },
             )
+        # Split provider errors: network/rate-limit issues are retryable, any
+        # other failure is treated as permanent.
         except (APITimeoutError, APIConnectionError, RateLimitError) as exc:
             raise TransientExtractionError("OpenAI extraction failed due to a transient provider error.") from exc
         except Exception as exc:
@@ -157,6 +174,8 @@ class OpenAIInvoiceExtractor:
 
 
 def build_invoice_extractor():
+    # Use the real extractor when a key is configured, otherwise fall back to
+    # the deterministic development extractor.
     if settings.openai_api_key:
         return OpenAIInvoiceExtractor(
             api_key=settings.openai_api_key,
@@ -171,10 +190,14 @@ def extraction_json_schema() -> dict[str, Any]:
 
 
 def get_or_create_prompt_version(db):
+    # Local imports avoid a circular dependency between this service module and
+    # the ORM models at import time.
     from sqlalchemy import select
 
     from app.models.prompt import PromptVersion
 
+    # Record the exact prompt/schema used for extractions so results stay
+    # traceable to a versioned prompt; reuse the row if it already exists.
     prompt_version = db.scalar(
         select(PromptVersion).where(
             PromptVersion.name == PROMPT_NAME,
@@ -237,6 +260,8 @@ def persist_extraction_result(
             )
         )
 
+    # Run business validation against the extracted values so the resulting
+    # status reflects whether the invoice can auto-pass or needs human review.
     validation_results = validate_invoice(
         InvoiceValidationInput(
             invoice_number=result.payload.invoice_number or invoice.invoice_number,
@@ -265,6 +290,8 @@ def persist_extraction_result(
             )
         )
 
+    # Prefer extracted values but keep the uploader-supplied ones when the model
+    # returned nothing, so we never overwrite known data with blanks.
     invoice.total_amount = result.payload.total_amount or invoice.total_amount
     invoice.currency = result.payload.currency.upper()
     invoice.invoice_number = result.payload.invoice_number or invoice.invoice_number
@@ -281,6 +308,8 @@ def parse_extraction_payload(raw_payload: dict[str, Any]) -> ExtractedInvoicePay
 
 
 def _response_output_text(response: Any) -> str:
+    # Prefer the SDK's flattened convenience field, but fall back to walking the
+    # structured output blocks in case it is absent on a given response shape.
     output_text = getattr(response, "output_text", None)
     if output_text:
         return output_text
@@ -308,6 +337,8 @@ def _response_usage(response: Any) -> ExtractionUsage:
 
 
 def _file_data_url(*, file_bytes: bytes, mime_type: str) -> str:
+    # Inline the document as a base64 data URL so the file travels in the request
+    # body itself, no separate upload/hosting step required.
     encoded = base64.b64encode(file_bytes).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
 
@@ -325,6 +356,8 @@ def _estimate_cost(*, input_tokens: int | None, output_tokens: int | None) -> De
     if input_tokens is None and output_tokens is None:
         return None
 
+    # Prices are configured per million tokens; use Decimal throughout to avoid
+    # float rounding when accumulating cost.
     input_cost = Decimal(settings.openai_input_cost_per_million_tokens)
     output_cost = Decimal(settings.openai_output_cost_per_million_tokens)
     total = Decimal("0")

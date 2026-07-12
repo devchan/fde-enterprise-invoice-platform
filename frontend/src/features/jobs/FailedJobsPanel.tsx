@@ -34,6 +34,7 @@ export function FailedJobsPanel({
     {
       accessorKey: "last_error",
       header: "Last error",
+      // Fall back to the invoice id when the job recorded no error message.
       cell: ({ row }) => <span className="text-muted-foreground">{row.original.last_error || row.original.invoice_id}</span>,
     },
     {
@@ -41,6 +42,7 @@ export function FailedJobsPanel({
       header: "Action",
       enableSorting: false,
       cell: ({ row }) => (
+        // Disabled without reprocess rights, or while this specific job's request is in flight.
         <button
           className="btn-secondary"
           disabled={!canReprocess || busy === `job:${row.original.processing_job_id}`}

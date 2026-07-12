@@ -36,6 +36,7 @@ export function OverviewPanel({
           </button>
         </div>
       </section>
+      {/* Three states: signed-in + loading, signed-in + ready (stat cards), or signed-out prompt. */}
       {signedIn && loading ? (
         <LoadingPanel title="Loading operational data." />
       ) : signedIn ? (

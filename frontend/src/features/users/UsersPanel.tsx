@@ -81,6 +81,8 @@ export function UsersPanel({
   );
 }
 
+// Per-user row with two independent forms (edit details, reset password); busy keys are
+// scoped by user_id so a spinner only shows on the row/action actually in flight.
 function UserManagementRow({
   busy,
   onResetPassword,

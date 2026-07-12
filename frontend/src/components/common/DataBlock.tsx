@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+// Titled section used to group the invoice detail sub-lists (validation, files, etc.).
 export function DataBlock({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section>

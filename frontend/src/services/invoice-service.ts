@@ -4,7 +4,9 @@ import type { ApiClient } from "./api-client";
 export class InvoiceService {
   constructor(private readonly apiClient: ApiClient) {}
 
+  // Endpoints are tenant-scoped server-side via the session; the client only forwards it.
   async list(session: Session): Promise<InvoiceDetail[]> {
+    // Unwrap the paginated envelope so callers get a plain array.
     const data = await this.apiClient.request<{ invoices: InvoiceDetail[] }>("/api/v1/invoices?limit=50", {}, session);
     return data.invoices;
   }
@@ -13,6 +15,7 @@ export class InvoiceService {
     return this.apiClient.request<InvoiceDetail>(`/api/v1/invoices/${invoiceId}`, {}, session);
   }
 
+  // Passes FormData through untouched so the client sets a multipart body (not JSON) for the file upload.
   upload(session: Session, form: FormData): Promise<{ invoice_id: string; invoice_number: string; processing_job_id: string | null }> {
     return this.apiClient.request<{ invoice_id: string; invoice_number: string; processing_job_id: string | null }>(
       "/api/v1/invoices/upload",
@@ -21,6 +24,8 @@ export class InvoiceService {
     );
   }
 
+  // expected_updated_at is sent for optimistic-concurrency: the server rejects the review
+  // if the invoice changed since it was loaded, preventing clobbering a concurrent edit.
   review(
     session: Session,
     invoiceId: string,
@@ -41,6 +46,7 @@ export class InvoiceService {
     );
   }
 
+  // Files are not served directly: the API mints a short-lived, pre-signed URL per request.
   async createDownloadUrl(session: Session, invoiceId: string, file: InvoiceFile): Promise<string> {
     const data = await this.apiClient.request<{ download_url: string }>(
       `/api/v1/invoices/${invoiceId}/files/${file.file_id}/download-url`,

@@ -1,5 +1,7 @@
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 
+// The three mutually-exclusive placeholder states a gated tab can show instead of
+// its content: data is loading, the user is signed out, or the user lacks the role.
 export function LoadingPanel({ title }: { title: string }) {
   return (
     <section className="callout-panel">
