@@ -365,6 +365,42 @@
   .alert-rule { font-family: var(--mono); font-size: 11px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
   .alert-rule b { color: var(--ink); }
 
+  /* ---- threat model ---- */
+  .threat-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .tflow { min-width: 660px; display: flex; align-items: stretch; }
+  .zone { flex: 1 1 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
+  .zone.untrusted { border-color: color-mix(in srgb, var(--crit) 38%, var(--line-strong)); }
+  .zone.trusted { border-color: color-mix(in srgb, var(--good) 40%, var(--line-strong)); }
+  .z-tag { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--slate); }
+  .z-name { font-family: var(--mono); font-size: 12px; font-weight: 650; color: var(--ink); margin-top: 3px; }
+  .z-note { font-family: var(--mono); font-size: 9.5px; color: var(--slate); margin-top: 4px; line-height: 1.4; }
+  .gate { flex: 0 0 118px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 0 6px; text-align: center; }
+  .gate .g-title { font-family: var(--mono); font-size: 8px; letter-spacing: .07em; text-transform: uppercase; color: var(--blueprint); }
+  .gate .g-arrow { width: 100%; height: 0; border-top: 2px dashed var(--blueprint); position: relative; }
+  .gate .g-arrow::after { content: "▶"; position: absolute; right: -3px; top: -7px; color: var(--blueprint); font-size: 9px; }
+  .gate .g-ctrl { font-family: var(--mono); font-size: 9px; color: var(--ink-2); line-height: 1.4; }
+  .stride { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .tcard { border: 1px solid var(--line); border-radius: 11px; background: var(--surface); padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+  .t-head { display: flex; align-items: center; gap: 10px; }
+  .t-letter { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; font-size: 14px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); flex: none; }
+  .t-cat { font-size: 13px; font-weight: 700; line-height: 1.15; }
+  .t-cat small { display: block; font-family: var(--mono); font-size: 8.5px; font-weight: 400; color: var(--slate); letter-spacing: .04em; text-transform: uppercase; margin-top: 3px; }
+  .t-threat { font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+  .t-threat b { color: var(--ink); font-weight: 600; }
+  .t-controls { display: flex; flex-direction: column; gap: 6px; }
+  .t-controls div { display: flex; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--ink-2); line-height: 1.4; }
+  .t-controls div::before { content: "✓"; color: var(--good); font-weight: 700; flex: none; }
+  .t-foot { margin-top: auto; }
+  .chip.ok { color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 42%, var(--line)); background: color-mix(in srgb, var(--good) 9%, transparent); }
+  .chip.partial { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 42%, var(--line)); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  .residual { margin-top: 16px; border: 1px dashed var(--line-strong); border-radius: 10px; padding: 14px 16px; background: repeating-linear-gradient(-45deg, transparent, transparent 9px, color-mix(in srgb, var(--warn) 6%, transparent) 9px, color-mix(in srgb, var(--warn) 6%, transparent) 10px); }
+  .residual h4 { margin: 0 0 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--warn); font-weight: 700; }
+  .residual ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .residual li { display: flex; gap: 9px; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+  .residual li::before { content: "△"; color: var(--warn); flex: none; }
+  .residual li b { color: var(--ink); font-weight: 650; }
+  .residual li code { font-family: var(--mono); font-size: 11px; background: var(--surface); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+
   @media (max-width: 720px) {
     .grid, .evidence { grid-template-columns: 1fr; }
     .scorewrap { grid-template-columns: 1fr; }
@@ -375,6 +411,7 @@
     .tier { grid-template-columns: 70px 1fr; }
     .slo-grid { grid-template-columns: 1fr; }
     .signals { grid-template-columns: 1fr 1fr; }
+    .stride { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .fill { transition: width .8s cubic-bezier(.2,.7,.2,1); }
@@ -1028,10 +1065,143 @@
     </div>
   </section>
 
+  <!-- THREAT MODEL -->
+  <section id="threat">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">08</span><h2>Threat model — security flow</h2></div>
+      <p class="sec-sub">Trust boundaries a request crosses, the control enforced at each, and a STRIDE view of
+        threats mapped to the mitigations actually in place — with residual risks stated plainly, not hidden.</p>
+
+      <div class="threat-scroll">
+        <div class="tflow">
+          <div class="zone untrusted">
+            <div class="z-tag">untrusted</div>
+            <div class="z-name">Internet</div>
+            <div class="z-note">clients · attackers</div>
+          </div>
+          <div class="gate">
+            <div class="g-title">boundary</div>
+            <div class="g-arrow"></div>
+            <div class="g-ctrl">TLS · CORS allow-list · rate limit</div>
+          </div>
+          <div class="zone">
+            <div class="z-tag">dmz</div>
+            <div class="z-name">Edge / Ingress</div>
+            <div class="z-note">routing · TLS termination</div>
+          </div>
+          <div class="gate">
+            <div class="g-title">boundary</div>
+            <div class="g-arrow"></div>
+            <div class="g-ctrl">authN cookie · RBAC · revocation</div>
+          </div>
+          <div class="zone">
+            <div class="z-tag">app</div>
+            <div class="z-name">Application</div>
+            <div class="z-note">non-root · least-priv</div>
+          </div>
+          <div class="gate">
+            <div class="g-title">boundary</div>
+            <div class="g-arrow"></div>
+            <div class="g-ctrl">tenant scope · param queries · signed URLs</div>
+          </div>
+          <div class="zone trusted">
+            <div class="z-tag">trusted</div>
+            <div class="z-name">Data</div>
+            <div class="z-note">Postgres · Redis · object store</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stride">
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">S</span><span class="t-cat">Spoofing<small>identity</small></span></div>
+          <div class="t-threat"><b>Stolen or forged credentials, session hijack.</b></div>
+          <div class="t-controls">
+            <div>PBKDF2-SHA256 password hashing</div>
+            <div>httpOnly cookie — token unreadable by JS</div>
+            <div>JWT signature + exp checked; alg:none blocked</div>
+            <div>startup guard rejects default secret</div>
+            <div>login rate-limited (Redis)</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">T</span><span class="t-cat">Tampering<small>integrity</small></span></div>
+          <div class="t-threat"><b>Altered requests, forged file links, lost-update on review.</b></div>
+          <div class="t-controls">
+            <div>HMAC-signed download URLs — tamper → 403</div>
+            <div>optimistic concurrency (expected_updated_at)</div>
+            <div>strict Pydantic schemas (extra=forbid)</div>
+            <div>upload size / MIME / checksum checks</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">R</span><span class="t-cat">Repudiation<small>accountability</small></span></div>
+          <div class="t-threat"><b>Actor denies performing an action.</b></div>
+          <div class="t-controls">
+            <div>append-only audit log (actor · ts · action · metadata)</div>
+            <div>ORM before_update / before_delete blocked</div>
+            <div>X-Request-ID correlation across logs</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">I</span><span class="t-cat">Info disclosure<small>confidentiality</small></span></div>
+          <div class="t-threat"><b>Cross-tenant reads, secret or file leakage.</b></div>
+          <div class="t-controls">
+            <div>server-derived org scope — cross-tenant → 404</div>
+            <div>private object storage + short-lived signed URLs</div>
+            <div>secrets in env / K8s Secret, never in code</div>
+            <div>dependencies CVE-clean (pip-audit gate)</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">D</span><span class="t-cat">Denial of service<small>availability</small></span></div>
+          <div class="t-threat"><b>Brute force, upload floods, resource exhaustion.</b></div>
+          <div class="t-controls">
+            <div>distributed rate limiting — login + upload</div>
+            <div>upload size cap · worker retry w/ backoff</div>
+            <div>CPU + memory limits (k8s / compose)</div>
+            <div>limiter fails open — cache outage ≠ outage</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+
+        <div class="tcard">
+          <div class="t-head"><span class="t-letter">E</span><span class="t-cat">Elevation of priv.<small>authorization</small></span></div>
+          <div class="t-threat"><b>Unauthorized actions, container escape.</b></div>
+          <div class="t-controls">
+            <div>RBAC require_roles on privileged actions</div>
+            <div>principal derived server-side — client IDs ignored</div>
+            <div>non-root containers (uid 10001 / 101)</div>
+            <div>readOnlyRootFilesystem · dropped capabilities</div>
+          </div>
+          <div class="t-foot"><span class="chip ok">mitigated</span></div>
+        </div>
+      </div>
+
+      <div class="residual">
+        <h4>Residual &amp; accepted risks</h4>
+        <ul>
+          <li><span><b>CSRF:</b> mitigated by <code>SameSite=Lax</code> cookies; dedicated double-submit CSRF tokens remain as defense-in-depth.</span></li>
+          <li><span><b>Prompt injection</b> via invoice content: blast radius bounded by strict JSON schema + <code>extra=forbid</code>; no explicit content sanitization yet.</span></li>
+          <li><span><b>Secrets management:</b> env / K8s Secret today — no external vault or automated rotation.</span></li>
+          <li><span><b>Edge protection:</b> no WAF / bot management in front of the ingress yet.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <!-- SCORECARD -->
   <section id="score">
     <div class="wrap">
-      <div class="sec-head"><span class="idx">08</span><h2>Production readiness scorecard</h2></div>
+      <div class="sec-head"><span class="idx">09</span><h2>Production readiness scorecard</h2></div>
       <div class="scorewrap">
         <div class="bigscore">
           <div class="n">9.0<span>/10</span></div>
@@ -1061,7 +1231,7 @@
   <!-- REMAINING -->
   <section id="remaining">
     <div class="wrap">
-      <div class="sec-head"><span class="idx">09</span><h2>Remaining path to 10</h2></div>
+      <div class="sec-head"><span class="idx">10</span><h2>Remaining path to 10</h2></div>
       <p class="sec-sub">Every launch <em>blocker</em> is closed. What's left is deployment-to-real-infra and
         defense-in-depth polish — capability is in place.</p>
       <div class="remain">
