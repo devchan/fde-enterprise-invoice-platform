@@ -342,6 +342,29 @@
   .seq-legend { font-family: var(--mono); font-size: 11px; color: var(--slate); margin-top: 14px; display: flex; gap: 20px; flex-wrap: wrap; }
   .seq-legend b { color: var(--ink-2); font-weight: 600; }
 
+  /* ---- SLO / observability panel ---- */
+  .slo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .slo-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 13px 15px; box-shadow: var(--shadow); }
+  .slo-name { font-size: 13.5px; font-weight: 650; }
+  .slo-sig { font-family: var(--mono); font-size: 10px; color: var(--slate); margin-top: 3px; line-height: 1.4; }
+  .slo-sig code { color: var(--blueprint); }
+  .slo-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .slo-obj { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip.inst { color: var(--blueprint); border: 1px solid color-mix(in srgb, var(--blueprint) 40%, var(--line)); background: var(--blueprint-soft); }
+  .chip.page { color: var(--crit); border: 1px solid color-mix(in srgb, var(--crit) 42%, var(--line)); background: color-mix(in srgb, var(--crit) 9%, transparent); }
+  .chip.watch { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 42%, var(--line)); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  .signals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .sigcard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px; }
+  .sigcard h4 { margin: 0 0 9px; font-size: 10.5px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .sigcard ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .sigcard li { font-family: var(--mono); font-size: 10px; color: var(--ink-2); line-height: 1.4; }
+  .alerts { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
+  .alerts-head { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--slate); padding: 11px 15px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .alert-row { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 11px 15px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .alert-row:first-of-type { border-top: 0; }
+  .alert-rule { font-family: var(--mono); font-size: 11px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
+  .alert-rule b { color: var(--ink); }
+
   @media (max-width: 720px) {
     .grid, .evidence { grid-template-columns: 1fr; }
     .scorewrap { grid-template-columns: 1fr; }
@@ -350,6 +373,8 @@
     .er { grid-template-columns: 1fr; }
     .er-notes { grid-template-columns: 1fr; }
     .tier { grid-template-columns: 70px 1fr; }
+    .slo-grid { grid-template-columns: 1fr; }
+    .signals { grid-template-columns: 1fr 1fr; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .fill { transition: width .8s cubic-bezier(.2,.7,.2,1); }
@@ -879,10 +904,134 @@
     </div>
   </section>
 
+  <!-- SLO / OBSERVABILITY -->
+  <section id="slo">
+    <div class="wrap">
+      <div class="sec-head"><span class="idx">07</span><h2>SLOs &amp; observability</h2></div>
+      <p class="sec-sub">The objectives below are the <b>proposed SLOs</b>, each paired with the signal that already
+        measures it — the platform emits every one today. Live attainment tracking starts when production telemetry
+        flows; no fabricated uptime numbers here. <span class="er-legend">State: <b>instrumented</b> = signal shipping, awaiting prod data.</span></p>
+
+      <div class="slo-grid">
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">API availability</div>
+            <div class="slo-sig">readiness probe + success ratio of <code>http_requests_total</code></div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">≥ 99.9% / mo</span><span class="chip inst">instrumented</span></div>
+        </div>
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">API latency · p95</div>
+            <div class="slo-sig">histogram_quantile over <code>http_request_duration_seconds_bucket</code></div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">&lt; 300 ms</span><span class="chip inst">instrumented</span></div>
+        </div>
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">API latency · p99</div>
+            <div class="slo-sig">same histogram, 0.99 quantile</div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">&lt; 800 ms</span><span class="chip inst">instrumented</span></div>
+        </div>
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">HTTP error rate · 5xx</div>
+            <div class="slo-sig"><code>http_requests_total{status_code=~"5.."}</code> ÷ total</div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">&lt; 0.1%</span><span class="chip inst">instrumented</span></div>
+        </div>
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">Extraction success</div>
+            <div class="slo-sig"><code>processing_jobs_failed_total</code> vs completed</div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">≥ 99%</span><span class="chip inst">instrumented</span></div>
+        </div>
+        <div class="slo-item">
+          <div>
+            <div class="slo-name">Queue processing · p95</div>
+            <div class="slo-sig"><code>processing_job_duration_seconds</code> + <code>processing_queue_depth</code></div>
+          </div>
+          <div class="slo-right"><span class="slo-obj">&lt; 60 s</span><span class="chip inst">instrumented</span></div>
+        </div>
+      </div>
+
+      <div class="signals">
+        <div class="sigcard">
+          <h4>Metrics</h4>
+          <ul>
+            <li>http_requests_total</li>
+            <li>http_request_duration_seconds (histogram)</li>
+            <li>processing_queue_depth</li>
+            <li>processing_jobs_failed_total</li>
+            <li>processing_job_duration_seconds</li>
+            <li>validation_failures_total</li>
+            <li>ai_estimated_cost_total</li>
+          </ul>
+        </div>
+        <div class="sigcard">
+          <h4>Traces · OTel</h4>
+          <ul>
+            <li>FastAPI server spans</li>
+            <li>+ http.route attribute</li>
+            <li>SQLAlchemy query spans</li>
+            <li>Redis command spans</li>
+            <li>OTLP / console export</li>
+          </ul>
+        </div>
+        <div class="sigcard">
+          <h4>Logs · structlog</h4>
+          <ul>
+            <li>JSON, one event/line</li>
+            <li>X-Request-ID correlation</li>
+            <li>method · path · status</li>
+            <li>duration_ms</li>
+            <li>job / invoice IDs</li>
+          </ul>
+        </div>
+        <div class="sigcard">
+          <h4>Probes</h4>
+          <ul>
+            <li>GET /health</li>
+            <li>— liveness</li>
+            <li>GET /health/ready</li>
+            <li>— checks Postgres</li>
+            <li>— checks Redis</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="alerts">
+        <div class="alerts-head">Recommended starting alert rules</div>
+        <div class="alert-row">
+          <span class="alert-rule"><b>p99 latency &gt; 0.8s for 5m</b> · histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))</span>
+          <span class="chip page">page</span>
+        </div>
+        <div class="alert-row">
+          <span class="alert-rule"><b>readiness failing</b> · GET /health/ready ≠ 200 (DB or Redis unreachable)</span>
+          <span class="chip page">page</span>
+        </div>
+        <div class="alert-row">
+          <span class="alert-rule"><b>5xx ratio &gt; 0.1% for 5m</b> · rate(http_requests_total{status_code=~"5.."}) ÷ rate(http_requests_total)</span>
+          <span class="chip page">page</span>
+        </div>
+        <div class="alert-row">
+          <span class="alert-rule"><b>queue backing up</b> · processing_queue_depth &gt; 100 for 10m</span>
+          <span class="chip watch">watch</span>
+        </div>
+        <div class="alert-row">
+          <span class="alert-rule"><b>extraction failures</b> · increase(processing_jobs_failed_total[15m]) &gt; 5</span>
+          <span class="chip watch">watch</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- SCORECARD -->
   <section id="score">
     <div class="wrap">
-      <div class="sec-head"><span class="idx">07</span><h2>Production readiness scorecard</h2></div>
+      <div class="sec-head"><span class="idx">08</span><h2>Production readiness scorecard</h2></div>
       <div class="scorewrap">
         <div class="bigscore">
           <div class="n">9.0<span>/10</span></div>
@@ -912,7 +1061,7 @@
   <!-- REMAINING -->
   <section id="remaining">
     <div class="wrap">
-      <div class="sec-head"><span class="idx">08</span><h2>Remaining path to 10</h2></div>
+      <div class="sec-head"><span class="idx">09</span><h2>Remaining path to 10</h2></div>
       <p class="sec-sub">Every launch <em>blocker</em> is closed. What's left is deployment-to-real-infra and
         defense-in-depth polish — capability is in place.</p>
       <div class="remain">
