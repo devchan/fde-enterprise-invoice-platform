@@ -12,6 +12,7 @@ out/
 dist/
 build/
 .DS_Store
+.idea/
 *.log
 *.tsbuildinfo
 .terraform/

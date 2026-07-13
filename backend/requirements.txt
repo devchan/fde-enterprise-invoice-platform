@@ -7,7 +7,10 @@ psycopg[binary]==3.2.3
 alembic==1.14.0
 redis==5.2.1
 python-multipart==0.0.31
-openai==1.59.7
+# invoice_extraction.py uses the Responses API (client.responses.create), which
+# only exists in the SDK from 1.66 onward; 1.59 lacked it and crashed extraction.
+# Pinned to the latest 1.x to get that API without the 2.x breaking changes.
+openai==1.109.1
 boto3==1.35.99
 structlog==24.4.0
 prometheus-client==0.21.1
