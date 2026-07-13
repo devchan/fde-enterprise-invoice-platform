@@ -117,6 +117,20 @@ class OpenAIInvoiceExtractor:
 
         client = OpenAI(api_key=self.api_key)
         mime_type = mime_type or "application/pdf"
+        # The Responses API accepts PDFs via `input_file` but rejects images
+        # there ("unsupported MIME type"); images must be sent as `input_image`
+        # with a data-URL. Since uploads allow PDF/JPEG/PNG, branch on the type.
+        if mime_type.startswith("image/"):
+            document_content = {
+                "type": "input_image",
+                "image_url": _file_data_url(file_bytes=file_bytes, mime_type=mime_type),
+            }
+        else:
+            document_content = {
+                "type": "input_file",
+                "filename": _invoice_filename(invoice_id=invoice.id, mime_type=mime_type),
+                "file_data": _file_data_url(file_bytes=file_bytes, mime_type=mime_type),
+            }
         try:
             response = client.responses.create(
                 model=self.model_name,
@@ -133,11 +147,7 @@ class OpenAIInvoiceExtractor:
                                     f"Known currency: {invoice.currency}"
                                 ),
                             },
-                            {
-                                "type": "input_file",
-                                "filename": _invoice_filename(invoice_id=invoice.id, mime_type=mime_type),
-                                "file_data": _file_data_url(file_bytes=file_bytes, mime_type=mime_type),
-                            },
+                            document_content,
                         ],
                     }
                 ],
@@ -155,7 +165,15 @@ class OpenAIInvoiceExtractor:
             )
         # Split provider errors: network/rate-limit issues are retryable, any
         # other failure is treated as permanent.
-        except (APITimeoutError, APIConnectionError, RateLimitError) as exc:
+        except RateLimitError as exc:
+            # `insufficient_quota` arrives as a 429 but is permanent until billing
+            # is fixed, so retrying only wastes attempts; treat it as a hard
+            # failure. Genuine rate limiting (any other 429) stays retryable.
+            code = getattr(exc, "code", None)
+            if code == "insufficient_quota" or "insufficient_quota" in str(exc):
+                raise ExtractionError("OpenAI extraction failed: account quota exhausted.") from exc
+            raise TransientExtractionError("OpenAI extraction failed due to a transient provider error.") from exc
+        except (APITimeoutError, APIConnectionError) as exc:
             raise TransientExtractionError("OpenAI extraction failed due to a transient provider error.") from exc
         except Exception as exc:
             raise ExtractionError("OpenAI extraction failed.") from exc
@@ -185,8 +203,53 @@ def build_invoice_extractor():
     return DevelopmentInvoiceExtractor()
 
 
+# Validation keywords Pydantic emits but OpenAI's strict Structured Outputs mode
+# rejects; leaving any of them in makes the API refuse the whole schema.
+_UNSUPPORTED_SCHEMA_KEYS = frozenset(
+    {
+        "minLength",
+        "maxLength",
+        "pattern",
+        "format",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "default",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+    }
+)
+
+
+def _to_strict_schema(node: Any) -> Any:
+    # Rewrite a Pydantic-generated JSON schema into the subset OpenAI strict mode
+    # accepts: strip unsupported keywords, and on every object force `required` to
+    # list all properties and forbid extras (strict mode demands both). Nullable
+    # fields stay satisfiable because their anyOf already permits null.
+    if isinstance(node, list):
+        return [_to_strict_schema(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+
+    cleaned = {
+        key: _to_strict_schema(value)
+        for key, value in node.items()
+        if key not in _UNSUPPORTED_SCHEMA_KEYS
+    }
+
+    if cleaned.get("type") == "object" or "properties" in cleaned:
+        properties = cleaned.get("properties", {})
+        cleaned["required"] = list(properties.keys())
+        cleaned["additionalProperties"] = False
+
+    return cleaned
+
+
 def extraction_json_schema() -> dict[str, Any]:
-    return ExtractedInvoicePayload.model_json_schema()
+    return _to_strict_schema(ExtractedInvoicePayload.model_json_schema())
 
 
 def get_or_create_prompt_version(db):
