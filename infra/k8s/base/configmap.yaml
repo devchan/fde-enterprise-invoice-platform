@@ -23,7 +23,7 @@ data:
   OPENAI_OUTPUT_COST_PER_MILLION_TOKENS: "0"
 
   # Gemini (API key is a Secret; model + cost knobs are non-secret).
-  GEMINI_EXTRACTION_MODEL: "gemini-2.5-flash"
+  GEMINI_EXTRACTION_MODEL: "gemini-flash-latest"
   GEMINI_INPUT_COST_PER_MILLION_TOKENS: "0"
   GEMINI_OUTPUT_COST_PER_MILLION_TOKENS: "0"
 
