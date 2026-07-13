@@ -191,14 +191,122 @@ class OpenAIInvoiceExtractor:
         )
 
 
-def build_invoice_extractor():
-    # Use the real extractor when a key is configured, otherwise fall back to
-    # the deterministic development extractor.
-    if settings.openai_api_key:
-        return OpenAIInvoiceExtractor(
-            api_key=settings.openai_api_key,
-            model_name=settings.openai_extraction_model,
+class GeminiInvoiceExtractor:
+    def __init__(self, *, api_key: str, model_name: str) -> None:
+        self.api_key = api_key
+        self.model_name = model_name
+
+    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+        # Import lazily so the Gemini SDK is only required when this extractor is
+        # actually selected, keeping it an optional dependency.
+        try:
+            from google import genai
+            from google.genai import errors as genai_errors
+            from google.genai import types
+        except ImportError as exc:
+            raise ExtractionError("Gemini SDK is not installed.") from exc
+
+        client = genai.Client(api_key=self.api_key)
+        mime_type = mime_type or "application/pdf"
+        # Gemini reads PDFs and images through the same inline-bytes Part, so no
+        # per-type branching is needed here (unlike the OpenAI Responses API).
+        # The schema is embedded in the prompt and JSON output is forced via
+        # response_mime_type; our own parse step still validates the result.
+        prompt = (
+            f"{PROMPT_TEMPLATE}\n"
+            f"Return only JSON matching this schema:\n{json.dumps(extraction_json_schema())}\n"
+            f"Known invoice number: {invoice.invoice_number}\n"
+            f"Known amount: {invoice.total_amount}\n"
+            f"Known currency: {invoice.currency}"
         )
+        try:
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                    prompt,
+                ],
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+        # Server-side/transient statuses are retryable; everything else (auth,
+        # quota, malformed request) is permanent so the worker stops requeuing.
+        except genai_errors.APIError as exc:
+            status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if status in {429, 500, 502, 503, 504}:
+                raise TransientExtractionError("Gemini extraction failed due to a transient provider error.") from exc
+            raise ExtractionError("Gemini extraction failed.") from exc
+        except Exception as exc:
+            raise ExtractionError("Gemini extraction failed.") from exc
+
+        raw_text = response.text
+        try:
+            raw_payload = json.loads(raw_text)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise InvalidExtractionResponseError("Gemini extraction returned invalid JSON.") from exc
+
+        return ExtractionResult(
+            payload=parse_extraction_payload(raw_payload),
+            model_name=self.model_name,
+            usage=_gemini_usage(response),
+        )
+
+
+# Provider identifiers shared by the API, the persisted job column and the UI.
+PROVIDER_OPENAI = "openai"
+PROVIDER_GEMINI = "gemini"
+PROVIDER_LABELS = {PROVIDER_OPENAI: "OpenAI", PROVIDER_GEMINI: "Gemini"}
+
+
+def provider_availability() -> dict[str, bool]:
+    # A provider is "available" only when its API key is configured; the UI uses
+    # this to disable options the server can't actually run.
+    return {
+        PROVIDER_OPENAI: bool(settings.openai_api_key),
+        PROVIDER_GEMINI: bool(settings.gemini_api_key),
+    }
+
+
+def default_provider() -> str | None:
+    # Prefer OpenAI, then Gemini; None means only the dev fallback is available.
+    availability = provider_availability()
+    for provider in (PROVIDER_OPENAI, PROVIDER_GEMINI):
+        if availability[provider]:
+            return provider
+    return None
+
+
+def _openai_extractor() -> "OpenAIInvoiceExtractor":
+    return OpenAIInvoiceExtractor(
+        api_key=settings.openai_api_key,
+        model_name=settings.openai_extraction_model,
+    )
+
+
+def _gemini_extractor() -> "GeminiInvoiceExtractor":
+    return GeminiInvoiceExtractor(
+        api_key=settings.gemini_api_key,
+        model_name=settings.gemini_extraction_model,
+    )
+
+
+def build_invoice_extractor(provider: str | None = None):
+    # Pick the extractor for the requested provider when its key is configured.
+    # An explicit-but-unavailable choice, or no choice, falls back to whichever
+    # provider is available (preferring OpenAI), then the deterministic dev
+    # extractor so the pipeline always runs.
+    provider = (provider or "").strip().lower() or None
+    availability = provider_availability()
+
+    if provider == PROVIDER_OPENAI and availability[PROVIDER_OPENAI]:
+        return _openai_extractor()
+    if provider == PROVIDER_GEMINI and availability[PROVIDER_GEMINI]:
+        return _gemini_extractor()
+
+    if provider is None:
+        if availability[PROVIDER_OPENAI]:
+            return _openai_extractor()
+        if availability[PROVIDER_GEMINI]:
+            return _gemini_extractor()
 
     return DevelopmentInvoiceExtractor()
 
@@ -399,6 +507,24 @@ def _response_usage(response: Any) -> ExtractionUsage:
     )
 
 
+def _gemini_usage(response: Any) -> ExtractionUsage:
+    # Gemini reports token counts under usage_metadata with different field names
+    # than OpenAI, and is priced with its own configured rates.
+    usage = getattr(response, "usage_metadata", None)
+    input_tokens = getattr(usage, "prompt_token_count", None) if usage else None
+    output_tokens = getattr(usage, "candidates_token_count", None) if usage else None
+    return ExtractionUsage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost=_estimate_cost(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            input_cost_per_million=settings.gemini_input_cost_per_million_tokens,
+            output_cost_per_million=settings.gemini_output_cost_per_million_tokens,
+        ),
+    )
+
+
 def _file_data_url(*, file_bytes: bytes, mime_type: str) -> str:
     # Inline the document as a base64 data URL so the file travels in the request
     # body itself, no separate upload/hosting step required.
@@ -415,14 +541,25 @@ def _invoice_filename(*, invoice_id: Any, mime_type: str) -> str:
     return f"invoice-{invoice_id}.{extensions.get(mime_type, 'bin')}"
 
 
-def _estimate_cost(*, input_tokens: int | None, output_tokens: int | None) -> Decimal | None:
+def _estimate_cost(
+    *,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    input_cost_per_million: str | None = None,
+    output_cost_per_million: str | None = None,
+) -> Decimal | None:
     if input_tokens is None and output_tokens is None:
         return None
 
     # Prices are configured per million tokens; use Decimal throughout to avoid
-    # float rounding when accumulating cost.
-    input_cost = Decimal(settings.openai_input_cost_per_million_tokens)
-    output_cost = Decimal(settings.openai_output_cost_per_million_tokens)
+    # float rounding when accumulating cost. Callers pass provider-specific rates;
+    # default to the OpenAI rates for backward compatibility.
+    input_cost = Decimal(
+        input_cost_per_million if input_cost_per_million is not None else settings.openai_input_cost_per_million_tokens
+    )
+    output_cost = Decimal(
+        output_cost_per_million if output_cost_per_million is not None else settings.openai_output_cost_per_million_tokens
+    )
     total = Decimal("0")
     if input_tokens is not None:
         total += Decimal(input_tokens) * input_cost / Decimal("1000000")

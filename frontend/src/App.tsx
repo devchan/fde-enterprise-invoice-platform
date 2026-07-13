@@ -25,6 +25,8 @@ export function App() {
     auditLogs,
     busy,
     dashboardStats,
+    defaultProvider,
+    extractionProviders,
     failedJobs,
     health,
     initializing,
@@ -126,7 +128,12 @@ export function App() {
           {activeTab === "upload" ? (
             session ? (
               userCanUpload ? (
-                <UploadPanel busy={busy === "upload"} onSubmit={actions.uploadInvoice} />
+                <UploadPanel
+                  busy={busy === "upload"}
+                  onSubmit={actions.uploadInvoice}
+                  providers={extractionProviders}
+                  defaultProvider={defaultProvider}
+                />
               ) : (
                 <AccessRequiredPanel title="Upload requires admin or uploader access." />
               )

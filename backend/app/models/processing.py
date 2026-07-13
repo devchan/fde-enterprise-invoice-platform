@@ -21,5 +21,8 @@ class ProcessingJob(TimestampMixin, Base):
     # Retry bookkeeping: attempt count and the most recent failure message.
     attempts: Mapped[int] = mapped_column(nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
+    # Extraction provider chosen at upload (e.g. "openai"/"gemini"); null lets the
+    # worker fall back to the server default.
+    provider: Mapped[str | None] = mapped_column(String(50))
 
     invoice: Mapped["Invoice"] = relationship(back_populates="processing_jobs")

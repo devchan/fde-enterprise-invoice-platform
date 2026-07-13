@@ -1,4 +1,4 @@
-import type { InvoiceDetail, InvoiceFile, Session } from "../domain/types";
+import type { ExtractionProvidersResponse, InvoiceDetail, InvoiceFile, Session } from "../domain/types";
 import type { ApiClient } from "./api-client";
 
 export class InvoiceService {
@@ -13,6 +13,12 @@ export class InvoiceService {
 
   get(session: Session, invoiceId: string): Promise<InvoiceDetail> {
     return this.apiClient.request<InvoiceDetail>(`/api/v1/invoices/${invoiceId}`, {}, session);
+  }
+
+  // Lists extraction providers and whether each is usable, so the upload form
+  // can disable options whose API key isn't configured server-side.
+  getProviders(session: Session): Promise<ExtractionProvidersResponse> {
+    return this.apiClient.request<ExtractionProvidersResponse>("/api/v1/extraction/providers", {}, session);
   }
 
   // Passes FormData through untouched so the client sets a multipart body (not JSON) for the file upload.

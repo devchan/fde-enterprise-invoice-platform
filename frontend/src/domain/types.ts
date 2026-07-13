@@ -107,3 +107,16 @@ export type UserRecord = {
 
 // Stable identifiers for the cockpit tabs; drives both navigation and RBAC gating.
 export type TabKey = "overview" | "upload" | "review" | "failed" | "audit" | "users";
+
+// An extraction provider option for the upload form; `available` is false when
+// the server has no API key for it, so the UI renders that option disabled.
+export type ExtractionProvider = {
+  id: string;
+  label: string;
+  available: boolean;
+};
+
+export type ExtractionProvidersResponse = {
+  default: string | null;
+  providers: ExtractionProvider[];
+};

@@ -1,6 +1,7 @@
 # Non-secret application configuration shared by backend and worker.
-# Secret values (DATABASE_URL, REDIS_URL, JWT_SECRET, OPENAI_API_KEY, object
-# storage credentials) live in the Secret (see secret.example.yaml), NOT here.
+# Secret values (DATABASE_URL, REDIS_URL, JWT_SECRET, OPENAI_API_KEY,
+# GEMINI_API_KEY, object storage credentials) live in the Secret (see
+# secret.example.yaml), NOT here.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -20,6 +21,11 @@ data:
   OPENAI_EXTRACTION_MODEL: "gpt-4.1"
   OPENAI_INPUT_COST_PER_MILLION_TOKENS: "0"
   OPENAI_OUTPUT_COST_PER_MILLION_TOKENS: "0"
+
+  # Gemini (API key is a Secret; model + cost knobs are non-secret).
+  GEMINI_EXTRACTION_MODEL: "gemini-2.5-flash"
+  GEMINI_INPUT_COST_PER_MILLION_TOKENS: "0"
+  GEMINI_OUTPUT_COST_PER_MILLION_TOKENS: "0"
 
   # Object storage (bucket + backend are non-secret; access keys are a Secret).
   OBJECT_STORAGE_BUCKET: "invoice-platform-production"

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../config";
 import { canReview, canUpload, isAdmin } from "../domain/authorization";
-import type { AuditLog, InvoiceDetail, InvoiceFile, ProcessingJob, Session, TabKey, UserRecord } from "../domain/types";
+import type { AuditLog, ExtractionProvider, InvoiceDetail, InvoiceFile, ProcessingJob, Session, TabKey, UserRecord } from "../domain/types";
 import { SessionExpiredError } from "../services/api-client";
 import { auditLogService, authService, invoiceService, processingJobService, userService } from "../services";
 import { SessionStore } from "../services/session-store";
@@ -26,6 +26,9 @@ export function useCockpitController() {
   const [failedJobs, setFailedJobs] = useState<ProcessingJob[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
+  // Extraction provider options for the upload form (with availability flags).
+  const [extractionProviders, setExtractionProviders] = useState<ExtractionProvider[]>([]);
+  const [defaultProvider, setDefaultProvider] = useState<string | null>(null);
 
   const userIsAdmin = isAdmin(session);
   const userCanReview = canReview(session);
@@ -98,6 +101,7 @@ export function useCockpitController() {
       await Promise.allSettled([
         loadFailedJobs(activeSession),
         loadAuditLogs(activeSession),
+        loadExtractionProviders(activeSession),
         activeSession.role === "admin" ? loadUsers(activeSession) : Promise.resolve(),
       ]);
     } catch (error) {
@@ -107,6 +111,14 @@ export function useCockpitController() {
     } finally {
       setInitializing(false);
     }
+  }
+
+  async function loadExtractionProviders(activeSession = session) {
+    if (!activeSession) return;
+    // Non-fatal: if this fails the upload form simply falls back to no selector.
+    const response = await withSessionHandling(() => invoiceService.getProviders(activeSession));
+    setExtractionProviders(response.providers);
+    setDefaultProvider(response.default);
   }
 
   async function login(credentials: LoginCredentials) {
@@ -394,6 +406,8 @@ export function useCockpitController() {
     auditLogs,
     busy,
     dashboardStats,
+    defaultProvider,
+    extractionProviders,
     failedJobs,
     health,
     initializing,

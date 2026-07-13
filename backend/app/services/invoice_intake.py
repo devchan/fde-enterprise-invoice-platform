@@ -77,6 +77,8 @@ class InvoiceUploadPayload:
     filename: str
     mime_type: str | None
     content: bytes
+    # Extraction provider chosen in the UI; None lets the worker decide.
+    provider: str | None = None
 
 
 @dataclass(frozen=True)
@@ -217,7 +219,7 @@ def create_invoice_upload(
     # so storage never drifts from the database.
     try:
         store_invoice_file(storage_key=storage_key, content=payload.content)
-        processing_job = build_invoice_extraction_job(invoice.id)
+        processing_job = build_invoice_extraction_job(invoice.id, payload.provider)
         db.add(processing_job)
         db.flush()
         db.add(

@@ -51,26 +51,30 @@ class ProcessingJobPayload:
     job_type: ProcessingJobType
     status: ProcessingJobStatus
     attempts: int
+    # Extraction provider chosen at upload; None means "let the server decide".
+    provider: str | None = None
 
 
-def build_invoice_extraction_job_payload(invoice_id: UUID) -> ProcessingJobPayload:
+def build_invoice_extraction_job_payload(invoice_id: UUID, provider: str | None = None) -> ProcessingJobPayload:
     return ProcessingJobPayload(
         invoice_id=invoice_id,
         job_type=ProcessingJobType.INVOICE_EXTRACTION,
         status=ProcessingJobStatus.QUEUED,
         attempts=0,
+        provider=provider,
     )
 
 
-def build_invoice_extraction_job(invoice_id: UUID):
+def build_invoice_extraction_job(invoice_id: UUID, provider: str | None = None):
     from app.models.processing import ProcessingJob
 
-    payload = build_invoice_extraction_job_payload(invoice_id)
+    payload = build_invoice_extraction_job_payload(invoice_id, provider)
     return ProcessingJob(
         invoice_id=payload.invoice_id,
         job_type=payload.job_type.value,
         status=payload.status.value,
         attempts=payload.attempts,
+        provider=payload.provider,
     )
 
 
@@ -134,7 +138,9 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
         raise ProcessingJobError("Invoice has no stored file to process.")
 
     file_bytes = read_invoice_file(storage_key=invoice_file.storage_key)
-    extraction_result = build_invoice_extractor().extract(
+    # Honour the provider chosen at upload; build_invoice_extractor falls back
+    # gracefully if that provider isn't configured.
+    extraction_result = build_invoice_extractor(provider=job.provider).extract(
         invoice=invoice,
         file_bytes=file_bytes,
         mime_type=invoice_file.mime_type,

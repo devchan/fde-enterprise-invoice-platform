@@ -1,8 +1,22 @@
 import type { FormEvent } from "react";
 import { FileUp, Loader2 } from "lucide-react";
 import { Field } from "../../components/common/Field";
+import type { ExtractionProvider } from "../../domain/types";
 
-export function UploadPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+export function UploadPanel({
+  busy,
+  onSubmit,
+  providers,
+  defaultProvider,
+}: {
+  busy: boolean;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  providers: ExtractionProvider[];
+  defaultProvider: string | null;
+}) {
+  // A provider with no server-side API key is shown but disabled so it can't be
+  // selected. Default the dropdown to the server's suggested (available) provider.
+  const hasProviders = providers.length > 0;
   return (
     <section className="panel">
       <h2 className="text-lg font-semibold">Upload Invoice</h2>
@@ -11,6 +25,19 @@ export function UploadPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (even
         <Field label="Currency" name="currency" defaultValue="USD" minLength={3} maxLength={3} required />
         <Field label="Supplier ID" name="supplier_id" placeholder="Optional UUID" />
         <Field label="Total amount" name="total_amount" type="number" step="0.01" min="0" />
+        {hasProviders ? (
+          <label className="field">
+            <span>Extraction provider</span>
+            <select name="provider" defaultValue={defaultProvider ?? ""}>
+              {providers.map((provider) => (
+                <option key={provider.id} value={provider.id} disabled={!provider.available}>
+                  {provider.label}
+                  {provider.available ? "" : " (no API key)"}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {/* accept limits the picker to the document types the extraction pipeline supports. */}
         <label className="field md:col-span-2">
           <span>Invoice file</span>

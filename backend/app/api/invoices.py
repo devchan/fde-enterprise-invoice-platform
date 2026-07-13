@@ -154,6 +154,8 @@ async def upload_invoice(
     supplier_id: UUID | None = Form(default=None),
     total_amount: Decimal | None = Form(default=None),
     currency: str = Form(default="USD", min_length=3, max_length=3),
+    # Extraction provider selected in the UI; None lets the server choose.
+    provider: str | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "uploader")),
     request_id: str | None = Header(default=None, alias="X-Request-ID"),
@@ -175,6 +177,7 @@ async def upload_invoice(
                 filename=file.filename or "",
                 mime_type=file.content_type,
                 content=content,
+                provider=provider,
             ),
             request_id=request_id,
         )

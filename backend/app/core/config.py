@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     openai_extraction_model: str = "gpt-4.1"
     openai_input_cost_per_million_tokens: str = "0"
     openai_output_cost_per_million_tokens: str = "0"
+    # Gemini is an alternative extraction provider (free tier). Its key being set
+    # is what makes the "gemini" option selectable; empty means unavailable.
+    gemini_api_key: str = ""
+    gemini_extraction_model: str = "gemini-2.5-flash"
+    gemini_input_cost_per_million_tokens: str = "0"
+    gemini_output_cost_per_million_tokens: str = "0"
     object_storage_bucket: str = "invoice-platform-local"
     object_storage_backend: str = "local"
     object_storage_local_path: str = ".local-storage"
