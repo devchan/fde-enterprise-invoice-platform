@@ -555,10 +555,14 @@ def _estimate_cost(
     # float rounding when accumulating cost. Callers pass provider-specific rates;
     # default to the OpenAI rates for backward compatibility.
     input_cost = Decimal(
-        input_cost_per_million if input_cost_per_million is not None else settings.openai_input_cost_per_million_tokens
+        input_cost_per_million
+        if input_cost_per_million is not None
+        else settings.openai_input_cost_per_million_tokens
     )
     output_cost = Decimal(
-        output_cost_per_million if output_cost_per_million is not None else settings.openai_output_cost_per_million_tokens
+        output_cost_per_million
+        if output_cost_per_million is not None
+        else settings.openai_output_cost_per_million_tokens
     )
     total = Decimal("0")
     if input_tokens is not None:
