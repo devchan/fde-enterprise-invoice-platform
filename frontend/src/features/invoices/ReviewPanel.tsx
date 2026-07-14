@@ -6,6 +6,10 @@ import { DataTable } from "../../components/common/DataTable";
 import { EmptyPanel } from "../../components/common/EmptyPanel";
 import { Field } from "../../components/common/Field";
 import { StatusPill } from "../../components/common/StatusPill";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import type { InvoiceDetail, InvoiceFile } from "../../domain/types";
 import { formatDate } from "../../utils/format";
 
@@ -55,38 +59,41 @@ export function ReviewPanel({
 
   return (
     <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-      <div className="panel">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Invoices</h2>
-          <button className="icon-button" onClick={onRefresh} title="Refresh invoices" type="button">
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="mt-4">
-          <DataTable columns={invoiceColumns} data={invoices} emptyMessage="No invoices loaded." />
-          {selectedInvoice ? (
-            <p className="mt-3 text-xs text-muted-foreground">Selected invoice: {selectedInvoice.invoice_number}</p>
-          ) : null}
-        </div>
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Invoices</h2>
+            <Button onClick={onRefresh} size="icon" title="Refresh invoices" type="button" variant="outline">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-4">
+            <DataTable columns={invoiceColumns} data={invoices} emptyMessage="No invoices loaded." />
+            {selectedInvoice ? (
+              <p className="mt-3 text-xs text-muted-foreground">Selected invoice: {selectedInvoice.invoice_number}</p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="panel">
-        {!selectedInvoice ? (
-          <EmptyPanel title="Select an invoice to review." />
-        ) : (
-          <>
+      {!selectedInvoice ? (
+        <EmptyPanel title="Select an invoice to review." />
+      ) : (
+        <Card>
+          <CardHeader>
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">{selectedInvoice.invoice_number}</h2>
-                <p className="text-sm text-muted-foreground">
+                <CardTitle className="text-xl">{selectedInvoice.invoice_number}</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {selectedInvoice.currency} {selectedInvoice.total_amount || "0.00"} · {selectedInvoice.status}
                 </p>
               </div>
               <StatusPill label={selectedInvoice.status} tone={selectedInvoice.status === "approved" ? "ok" : selectedInvoice.status === "failed" ? "error" : "info"} />
             </div>
-
+          </CardHeader>
+          <CardContent>
             <form
-              className="mt-5 grid gap-4 md:grid-cols-2"
+              className="grid gap-4 md:grid-cols-2"
               onSubmit={(event) => {
                 // One form, two submit buttons: read the clicked button's value to
                 // decide approve vs reject (default to approve if the submitter is unknown).
@@ -100,26 +107,26 @@ export function ReviewPanel({
               <Field label="Invoice date" name="invoice_date" type="date" defaultValue={selectedInvoice.invoice_date || ""} />
               <Field label="Total amount" name="total_amount" type="number" step="0.01" defaultValue={selectedInvoice.total_amount || ""} />
               <Field label="Currency" name="currency" defaultValue={selectedInvoice.currency} />
-              <label className="field md:col-span-2">
-                <span>Review notes</span>
-                <textarea name="notes" rows={3} placeholder="Decision notes" />
-              </label>
+              <div className="grid gap-1.5 md:col-span-2">
+                <Label htmlFor="notes">Review notes</Label>
+                <Textarea id="notes" name="notes" rows={3} placeholder="Decision notes" />
+              </div>
               <div className="flex flex-wrap gap-2 md:col-span-2">
-                <button className="btn-primary" disabled={busy === "review:approve"} name="decision" type="submit" value="approve">
+                <Button disabled={busy === "review:approve"} name="decision" type="submit" value="approve">
                   <CheckCircle2 className="h-4 w-4" />
                   Approve
-                </button>
-                <button className="btn-danger" disabled={busy === "review:reject"} name="decision" type="submit" value="reject">
+                </Button>
+                <Button disabled={busy === "review:reject"} name="decision" type="submit" value="reject" variant="destructive">
                   <XCircle className="h-4 w-4" />
                   Reject
-                </button>
+                </Button>
               </div>
             </form>
 
             <DetailSections invoice={selectedInvoice} busy={busy} onOpenFile={onOpenFile} />
-          </>
-        )}
-      </div>
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }

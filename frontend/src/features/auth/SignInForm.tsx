@@ -3,6 +3,7 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Field } from "../../components/common/Field";
+import { Button } from "../../components/ui/button";
 import type { LoginCredentials } from "../../app/useCockpitController";
 
 // Client-side validation for immediate feedback; the server still authoritatively
@@ -46,10 +47,10 @@ export function SignInForm({
         {...register("password")}
       />
       {errors.password ? <p className="field-error">{errors.password.message}</p> : null}
-      <button className="btn-primary w-full" disabled={busy} type="submit">
+      <Button className="w-full" disabled={busy} type="submit">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
         Sign in
-      </button>
+      </Button>
     </form>
   );
 }

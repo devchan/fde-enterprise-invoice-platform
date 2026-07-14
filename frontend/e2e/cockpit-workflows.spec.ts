@@ -15,16 +15,16 @@ async function signIn(page: import("@playwright/test").Page) {
 test("admin can sign in and access protected cockpit areas", async ({ page }) => {
   await signIn(page);
 
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("link", { name: "Upload" }).click();
   await expect(page.getByRole("heading", { name: "Upload Invoice" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Failed Jobs" }).click();
+  await page.getByRole("link", { name: "Failed Jobs" }).click();
   await expect(page.getByRole("heading", { name: "Failed Jobs" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Audit Logs" }).click();
+  await page.getByRole("link", { name: "Audit Logs" }).click();
   await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Users" }).click();
+  await page.getByRole("link", { name: "Users" }).click();
   await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
 });
 
@@ -60,7 +60,7 @@ test("admin can upload an invoice, review it, and approve it", async ({ page, re
   const invoiceNumber = `E2E-${Date.now()}`;
 
   await signIn(page);
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("link", { name: "Upload" }).click();
   await page.getByLabel("Invoice number").fill(invoiceNumber);
   await page.getByLabel("Currency").fill("USD");
   await page.getByLabel("Total amount").fill("123.45");
@@ -74,7 +74,7 @@ test("admin can upload an invoice, review it, and approve it", async ({ page, re
   await expect(page.getByText(`Uploaded ${invoiceNumber}.`)).toBeVisible();
   await waitForInvoiceStatus(request, await accessToken(page), invoiceNumber, "review_required");
 
-  await page.getByRole("button", { name: "Review Queue" }).click();
+  await page.getByRole("link", { name: "Review Queue" }).click();
   await page.getByRole("button", { name: "Refresh invoices" }).click();
   await expect(page.getByRole("button", { name: new RegExp(invoiceNumber) })).toBeVisible();
   await page.getByRole("button", { name: new RegExp(invoiceNumber) }).click();
@@ -88,12 +88,12 @@ test("admin can filter audit logs and create a user", async ({ page }) => {
   const userEmail = `e2e-user-${Date.now()}@example.com`;
 
   await signIn(page);
-  await page.getByRole("button", { name: "Audit Logs" }).click();
+  await page.getByRole("link", { name: "Audit Logs" }).click();
   await page.getByLabel("Action").fill("user");
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Users" }).click();
+  await page.getByRole("link", { name: "Users" }).click();
   await page.locator("form").filter({ hasText: "Create user" }).getByLabel("Email").fill(userEmail);
   await page.locator("form").filter({ hasText: "Create user" }).getByLabel("Role").selectOption("reviewer");
   await page.locator("form").filter({ hasText: "Create user" }).getByLabel("Temporary password").fill("reviewer-password-123");

@@ -1,7 +1,8 @@
+import { useNavigate } from "@tanstack/react-router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../config";
 import { canReview, canUpload, isAdmin } from "../domain/authorization";
-import type { AuditLog, ExtractionProvider, InvoiceDetail, InvoiceFile, ProcessingJob, Session, TabKey, UserRecord } from "../domain/types";
+import type { AuditLog, ExtractionProvider, InvoiceDetail, InvoiceFile, ProcessingJob, Session, UserRecord } from "../domain/types";
 import { SessionExpiredError } from "../services/api-client";
 import { auditLogService, authService, invoiceService, processingJobService, userService } from "../services";
 import { SessionStore } from "../services/session-store";
@@ -15,8 +16,8 @@ export type LoginCredentials = {
 export function useCockpitController() {
   // Start unauthenticated; the httpOnly cookie is the source of truth and is
   // validated on mount via /auth/me (the JS-readable token no longer exists).
+  const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [toast, setToast] = useState<{ message: string; tone: "ok" | "error" | "info" } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(false);
@@ -130,7 +131,7 @@ export function useCockpitController() {
           credentials.password,
         ),
       );
-      setActiveTab("overview");
+      void navigate({ to: "/" });
       setSession(nextSession);
       setToast({ message: `Signed in as ${nextSession.email}`, tone: "ok" });
     } catch (error) {
@@ -155,7 +156,7 @@ export function useCockpitController() {
     setSelectedInvoice(null);
     setBusy(null);
     setInitializing(false);
-    setActiveTab("overview");
+    void navigate({ to: "/" });
     setToast({ message, tone });
   }
 
@@ -175,7 +176,7 @@ export function useCockpitController() {
       if (!session) return;
       const detail = await withSessionHandling(() => invoiceService.get(session, invoiceId));
       setSelectedInvoice(detail);
-      setActiveTab("review");
+      void navigate({ to: "/review" });
     } catch (error) {
       setToast({ message: errorMessage(error), tone: "error" });
     } finally {
@@ -402,7 +403,6 @@ export function useCockpitController() {
   }
 
   return {
-    activeTab,
     auditLogs,
     busy,
     dashboardStats,
@@ -436,7 +436,6 @@ export function useCockpitController() {
       reprocessJob,
       resetUserPassword,
       reviewInvoice,
-      setActiveTab,
       setToast,
       updateUser,
       uploadInvoice,

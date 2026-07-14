@@ -2,6 +2,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, RefreshCw } from "lucide-react";
 import { DataTable } from "../../components/common/DataTable";
 import { PanelHeader } from "../../components/common/PanelHeader";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "../../components/ui/card";
 import type { ProcessingJob } from "../../domain/types";
 
 export function FailedJobsPanel({
@@ -43,28 +45,31 @@ export function FailedJobsPanel({
       enableSorting: false,
       cell: ({ row }) => (
         // Disabled without reprocess rights, or while this specific job's request is in flight.
-        <button
-          className="btn-secondary"
+        <Button
           disabled={!canReprocess || busy === `job:${row.original.processing_job_id}`}
           onClick={() => onReprocess(row.original)}
+          size="sm"
           type="button"
+          variant="outline"
         >
           {busy === `job:${row.original.processing_job_id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Reprocess
-        </button>
+        </Button>
       ),
     },
   ];
 
   return (
-    <section className="panel">
-      <PanelHeader title="Failed Jobs" onRefresh={onRefresh} />
-      {!canReprocess ? (
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">Reprocess actions require admin or reviewer access.</p>
-      ) : null}
-      <div className="mt-4">
-        <DataTable columns={columns} data={jobs} emptyMessage="No failed jobs." />
-      </div>
-    </section>
+    <Card>
+      <CardContent className="pt-6">
+        <PanelHeader title="Failed Jobs" onRefresh={onRefresh} />
+        {!canReprocess ? (
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Reprocess actions require admin or reviewer access.</p>
+        ) : null}
+        <div className="mt-4">
+          <DataTable columns={columns} data={jobs} emptyMessage="No failed jobs." />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

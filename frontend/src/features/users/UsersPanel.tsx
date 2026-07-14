@@ -5,6 +5,10 @@ import { DataTable } from "../../components/common/DataTable";
 import { Field } from "../../components/common/Field";
 import { PanelHeader } from "../../components/common/PanelHeader";
 import { StatusPill } from "../../components/common/StatusPill";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { inputVariants } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 import type { UserRecord } from "../../domain/types";
 import { shortId } from "../../utils/format";
 
@@ -43,40 +47,48 @@ export function UsersPanel({
 
   return (
     <section className="grid gap-4 xl:grid-cols-[1fr_420px]">
-      <div className="panel">
-        <PanelHeader title="Users" onRefresh={onRefresh} />
-        <div className="mt-4">
-          <DataTable columns={columns} data={users} emptyMessage="No users found." />
-        </div>
-        <div className="mt-4 space-y-3">
-          {users.map((user) => (
-            <UserManagementRow
-              busy={busy}
-              key={user.user_id}
-              onResetPassword={onResetPassword}
-              onUpdate={onUpdate}
-              user={user}
-            />
-          ))}
-        </div>
-      </div>
-      <form className="panel space-y-3" onSubmit={onCreate}>
-        <h2 className="text-lg font-semibold">Create user</h2>
-        <Field label="Email" name="email" type="email" required />
-        <label className="field">
-          <span>Role</span>
-          <select name="role" defaultValue="reviewer">
-            <option value="admin">admin</option>
-            <option value="reviewer">reviewer</option>
-            <option value="uploader">uploader</option>
-          </select>
-        </label>
-        <Field label="Temporary password" name="password" type="password" minLength={12} required />
-        <button className="btn-primary" disabled={busy === "create-user"} type="submit">
-          {busy === "create-user" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-          Create user
-        </button>
-      </form>
+      <Card>
+        <CardContent className="pt-6">
+          <PanelHeader title="Users" onRefresh={onRefresh} />
+          <div className="mt-4">
+            <DataTable columns={columns} data={users} emptyMessage="No users found." />
+          </div>
+          <div className="mt-4 space-y-3">
+            {users.map((user) => (
+              <UserManagementRow
+                busy={busy}
+                key={user.user_id}
+                onResetPassword={onResetPassword}
+                onUpdate={onUpdate}
+                user={user}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Create user</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-3" onSubmit={onCreate}>
+            <Field label="Email" name="email" type="email" required />
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-user-role">Role</Label>
+              <select className={inputVariants} defaultValue="reviewer" id="new-user-role" name="role">
+                <option value="admin">admin</option>
+                <option value="reviewer">reviewer</option>
+                <option value="uploader">uploader</option>
+              </select>
+            </div>
+            <Field label="Temporary password" name="password" type="password" minLength={12} required />
+            <Button disabled={busy === "create-user"} type="submit">
+              {busy === "create-user" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              Create user
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -98,43 +110,52 @@ function UserManagementRow({
   const resetting = busy === `user:password:${user.user_id}`;
 
   return (
-    <article className="user-card">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="font-medium">{user.email}</p>
-          <p className="text-xs text-muted-foreground">{shortId(user.user_id)}</p>
+    <Card>
+      <CardContent className="overflow-hidden pt-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-medium">{user.email}</p>
+            <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{shortId(user.user_id)}</p>
+          </div>
+          <StatusPill label={user.role} tone="info" />
         </div>
-        <StatusPill label={user.role} tone="info" />
-      </div>
 
-      <div className="mt-4 grid gap-4">
-        <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => onUpdate(user, event)}>
-          <label className="field sm:col-span-2">
-            <span>Email</span>
-            <input name="email" type="email" defaultValue={user.email} required />
-          </label>
-          <label className="field">
-            <span>Role</span>
-            <select name="role" defaultValue={user.role}>
-              <option value="admin">admin</option>
-              <option value="reviewer">reviewer</option>
-              <option value="uploader">uploader</option>
-            </select>
-          </label>
-          <button className="btn-secondary self-end" disabled={updating} type="submit">
-            {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save
-          </button>
-        </form>
+        <div className="mt-4 grid gap-4">
+          <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => onUpdate(user, event)}>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor={`email-${user.user_id}`}>Email</Label>
+              <input
+                className={inputVariants}
+                defaultValue={user.email}
+                id={`email-${user.user_id}`}
+                name="email"
+                required
+                type="email"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor={`role-${user.user_id}`}>Role</Label>
+              <select className={inputVariants} defaultValue={user.role} id={`role-${user.user_id}`} name="role">
+                <option value="admin">admin</option>
+                <option value="reviewer">reviewer</option>
+                <option value="uploader">uploader</option>
+              </select>
+            </div>
+            <Button className="self-end" disabled={updating} type="submit" variant="outline">
+              {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save
+            </Button>
+          </form>
 
-        <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => onResetPassword(user, event)}>
-          <Field label="New password" name="password" type="password" minLength={12} required />
-          <button className="btn-secondary" disabled={resetting} type="submit">
-            {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            Reset password
-          </button>
-        </form>
-      </div>
-    </article>
+          <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => onResetPassword(user, event)}>
+            <Field label="New password" name="password" type="password" minLength={12} required />
+            <Button disabled={resetting} type="submit" variant="outline">
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+              Reset password
+            </Button>
+          </form>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

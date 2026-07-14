@@ -1,4 +1,15 @@
-// Small colored status badge; `tone` maps to a CSS modifier class (status-ok/error/info).
+import { Badge } from "../ui/badge";
+
+const toneVariant = {
+  ok: "success",
+  error: "destructive",
+  info: "secondary",
+} as const;
+
 export function StatusPill({ label, tone }: { label: string; tone: "ok" | "error" | "info" }) {
-  return <span className={`status-pill status-${tone}`}>{label}</span>;
+  return (
+    <Badge className="uppercase" variant={toneVariant[tone]}>
+      {label}
+    </Badge>
+  );
 }
