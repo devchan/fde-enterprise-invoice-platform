@@ -392,10 +392,11 @@ Current behavior:
 
 - worker failures are recorded after rolling back in-progress processing state
 - each recorded failure increments `processing_jobs.attempts`
-- jobs are requeued while attempts are below `PROCESSING_JOB_MAX_ATTEMPTS`
+- jobs are scheduled for delayed retry while attempts are below `PROCESSING_JOB_MAX_ATTEMPTS`
 - retry scheduling writes `processing_job.retry_scheduled` audit events
 - when attempts reach `PROCESSING_JOB_MAX_ATTEMPTS`, the job and invoice are marked `failed`
 - default maximum attempts is 3
+- default retry backoff is 30 seconds, doubling on each failed attempt before the cap
 - worker persists extraction payload, prompt version, line items, and validation results
 
 ### `GET /api/v1/events/stream`

@@ -351,7 +351,9 @@ class SecurityApiTest(unittest.TestCase):
         )
 
         self.assertEqual(result.status, ProcessingJobStatus.QUEUED)
-        self.assertEqual(redis_client.enqueued_job_ids, [str(job.id)])
+        self.assertEqual(redis_client.enqueued_job_ids, [])
+        self.assertEqual(redis_client.delayed_job_ids, [str(job.id)])
+        self.assertGreater(redis_client.delayed_scores[0], time.time())
         self.db.expire_all()
         refreshed_job = self.db.get(ProcessingJob, job.id)
         refreshed_invoice = self.db.get(Invoice, invoice.id)
@@ -524,9 +526,16 @@ class SecurityApiTest(unittest.TestCase):
 class FakeRedis:
     def __init__(self) -> None:
         self.enqueued_job_ids: list[str] = []
+        self.delayed_job_ids: list[str] = []
+        self.delayed_scores: list[float] = []
 
     def rpush(self, _queue_name: str, processing_job_id: str) -> None:
         self.enqueued_job_ids.append(processing_job_id)
+
+    def zadd(self, _queue_name: str, values: dict[str, float]) -> None:
+        for processing_job_id, score in values.items():
+            self.delayed_job_ids.append(processing_job_id)
+            self.delayed_scores.append(score)
 
 
 def _test_jwt(user_id) -> str:

@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://invoice_user:invoice_pass@localhost:5432/invoice_platform"
     redis_url: str = "redis://localhost:6379/0"
     processing_queue_name: str = "invoice_processing_jobs"
+    processing_retry_queue_name: str = "invoice_processing_jobs:delayed"
     worker_poll_timeout_seconds: int = 5
     worker_sleep_seconds: int = 1
     processing_job_max_attempts: int = 3
+    processing_job_retry_backoff_seconds: int = 30
     openai_api_key: str = ""
     openai_extraction_model: str = "gpt-4.1"
     openai_input_cost_per_million_tokens: str = "0"

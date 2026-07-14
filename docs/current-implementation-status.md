@@ -20,7 +20,7 @@ This document describes what is implemented in the repository today. It intentio
 - Upload creates a durable `processing_jobs` row for invoice extraction.
 - Upload publishes queued processing jobs to Redis.
 - A Docker worker service consumes queued jobs and updates job/invoice status.
-- Worker failures are recorded with a bounded automatic retry policy controlled by `PROCESSING_JOB_MAX_ATTEMPTS`.
+- Worker failures are recorded with a bounded automatic retry policy controlled by `PROCESSING_JOB_MAX_ATTEMPTS`; retryable failures are scheduled through a Redis delayed-retry set using `PROCESSING_JOB_RETRY_BACKOFF_SECONDS`.
 - The worker persists extraction payloads, prompt version references, line items, and validation results.
 - The worker uses a production OpenAI Responses API extractor when `OPENAI_API_KEY` is configured, otherwise it uses the development extractor.
 - Extraction persistence stores provider token usage and configurable estimated cost when provider usage is returned.

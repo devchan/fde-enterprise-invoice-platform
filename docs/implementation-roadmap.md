@@ -63,7 +63,7 @@ Remaining hardening before Phase 2 is production-complete:
 
 Goal: move slow work out of API requests.
 
-Status: implemented and smoke-tested through Docker. Upload creates queued jobs, the worker consumes Redis jobs, failures are retried up to `PROCESSING_JOB_MAX_ATTEMPTS`, final failures can be inspected, and failed jobs can be manually reprocessed.
+Status: implemented and smoke-tested through Docker. Upload creates queued jobs, the worker consumes Redis jobs, retryable failures are delayed with exponential backoff up to `PROCESSING_JOB_MAX_ATTEMPTS`, final failures can be inspected, and failed jobs can be manually reprocessed.
 
 Deliverables:
 

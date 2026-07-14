@@ -89,9 +89,11 @@ Application behavior:
 | Variable | Purpose |
 | --- | --- |
 | `PROCESSING_QUEUE_NAME` | Redis queue name. Defaults to `invoice_processing_jobs`. |
+| `PROCESSING_RETRY_QUEUE_NAME` | Redis sorted set for delayed processing-job retries. Defaults to `invoice_processing_jobs:delayed`. |
 | `WORKER_POLL_TIMEOUT_SECONDS` | Worker Redis polling timeout. |
 | `WORKER_SLEEP_SECONDS` | Worker idle sleep interval. |
 | `PROCESSING_JOB_MAX_ATTEMPTS` | Maximum worker attempts before a processing job is marked failed. Defaults to 3. |
+| `PROCESSING_JOB_RETRY_BACKOFF_SECONDS` | Base delay before retrying failed processing jobs. Defaults to 30 seconds and doubles per failed attempt. |
 | `INVOICE_UPLOAD_MAX_BYTES` | Maximum accepted invoice upload size. |
 | `UPLOAD_RATE_LIMIT_ENABLED` | Enables in-process upload rate limiting. Defaults to true. |
 | `UPLOAD_RATE_LIMIT_REQUESTS` | Upload requests allowed per client/window. Defaults to 20. |

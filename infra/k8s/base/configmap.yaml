@@ -51,6 +51,8 @@ data:
 
   # Worker / processing queue.
   PROCESSING_QUEUE_NAME: "invoice_processing_jobs"
+  PROCESSING_RETRY_QUEUE_NAME: "invoice_processing_jobs:delayed"
   WORKER_POLL_TIMEOUT_SECONDS: "5"
   WORKER_SLEEP_SECONDS: "1"
   PROCESSING_JOB_MAX_ATTEMPTS: "3"
+  PROCESSING_JOB_RETRY_BACKOFF_SECONDS: "30"

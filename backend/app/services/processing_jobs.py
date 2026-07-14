@@ -11,6 +11,7 @@ the worker without eagerly loading the ORM.
 
 from dataclasses import dataclass
 from enum import StrEnum
+import time
 from typing import Any
 from uuid import UUID
 
@@ -79,15 +80,33 @@ def build_invoice_extraction_job(invoice_id: UUID, provider: str | None = None):
     )
 
 
-def enqueue_processing_job(redis_client: Any, processing_job_id: UUID) -> None:
+def enqueue_processing_job(redis_client: Any, processing_job_id: UUID, *, delay_seconds: int = 0) -> None:
     from app.core.config import settings
 
+    if delay_seconds > 0:
+        redis_client.zadd(
+            settings.processing_retry_queue_name,
+            {str(processing_job_id): time.time() + delay_seconds},
+        )
+        return
+
     redis_client.rpush(settings.processing_queue_name, str(processing_job_id))
+
+
+def _promote_due_processing_jobs(redis_client: Any) -> None:
+    from app.core.config import settings
+
+    due_job_ids = redis_client.zrangebyscore(settings.processing_retry_queue_name, 0, time.time())
+    for raw_job_id in due_job_ids:
+        job_id = raw_job_id.decode("utf-8") if isinstance(raw_job_id, bytes) else str(raw_job_id)
+        if redis_client.zrem(settings.processing_retry_queue_name, job_id):
+            redis_client.rpush(settings.processing_queue_name, job_id)
 
 
 def dequeue_processing_job(redis_client: Any, *, timeout_seconds: int | None = None) -> UUID | None:
     from app.core.config import settings
 
+    _promote_due_processing_jobs(redis_client)
     timeout = settings.worker_poll_timeout_seconds if timeout_seconds is None else timeout_seconds
     # Blocking pop so the worker sleeps until a job arrives instead of busy-polling;
     # returns None on timeout to let the caller loop and re-check for shutdown.
@@ -428,8 +447,9 @@ def record_processing_job_failure(
                         event_metadata=status_event.metadata,
                     )
                 )
+        retry_delay_seconds = _processing_job_retry_delay_seconds(job.attempts)
         db.commit()
-        enqueue_processing_job(redis_client, job.id)
+        enqueue_processing_job(redis_client, job.id, delay_seconds=retry_delay_seconds)
         db.refresh(job)
         if invoice is not None:
             publish_event(
@@ -465,6 +485,12 @@ def record_processing_job_failure(
         job_type=ProcessingJobType(job.job_type),
         status=ProcessingJobStatus(job.status),
     )
+
+
+def _processing_job_retry_delay_seconds(attempts: int) -> int:
+    from app.core.config import settings
+
+    return max(settings.processing_job_retry_backoff_seconds, 0) * (2 ** max(attempts - 1, 0))
 
 
 def _transition_job(db: Any, *, job: Any, invoice: Any, status: ProcessingJobStatus) -> None:
