@@ -398,6 +398,22 @@ Current behavior:
 - default maximum attempts is 3
 - worker persists extraction payload, prompt version, line items, and validation results
 
+### `GET /api/v1/events/stream`
+
+Status: Implemented.
+
+Purpose: real-time, tenant-scoped event stream so clients can invalidate cached state instead of polling.
+
+Current behavior:
+
+- requires a valid bearer token (or httpOnly cookie) for a database-backed user
+- responds `text/event-stream` (Server-Sent Events) and stays open until the client disconnects
+- subscribes to a Redis pub/sub channel scoped to the authenticated user's organization (`org:{organization_id}:events`)
+- forwards each published event as an SSE message; sends periodic keepalive pings so intermediary proxies do not time out the connection
+- events are minimal signals, not full payloads: `{"type": "job.completed" | "job.failed" | "job.requeued" | "invoice.status_changed", "invoice_id", "processing_job_id"?, "status"?, "occurred_at"}`. Clients use the event only to decide what to refetch from the authoritative REST endpoints; the event itself is never the source of truth.
+- events are published from `app/services/events.py::publish_event()` immediately after the relevant `db.commit()` in the worker's extraction job lifecycle (`app/services/processing_jobs.py`) and in invoice review submission (`app/services/invoice_review.py`), so both worker-driven and API-driven state changes emit consistently
+- publishing never raises: a Redis outage degrades to "no live updates," not a failed business request
+
 ## Error Format
 
 Target production error response:

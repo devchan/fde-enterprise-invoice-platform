@@ -463,8 +463,11 @@
           <div class="plane">
             <div class="plane-label"><span class="num">L1</span><span class="name">Client</span><span class="own">FDE: cockpit UX + RBAC gating</span></div>
             <div class="tiles">
-              <div class="tile"><div class="t">Reviewer Cockpit</div><div class="d">React 19 · Vite SPA</div></div>
-              <div class="tile"><div class="t">React Query + Zod forms</div><div class="d">data + validation</div></div>
+              <div class="tile"><div class="t">Reviewer Cockpit</div><div class="d">React 19 · TanStack Router</div></div>
+              <div class="tile"><div class="t">TanStack Query</div><div class="d">full data layer · replaces manual state</div></div>
+              <div class="tile"><div class="t">shadcn/ui</div><div class="d">Radix + Tailwind · light/dark</div></div>
+              <div class="tile accent"><div class="t">Live updates</div><div class="d">SSE subscriber → cache invalidation</div></div>
+              <div class="tile"><div class="t">Cmd/Ctrl+K palette</div><div class="d">RBAC-aware launcher</div></div>
               <div class="tile"><div class="t">Error boundary</div><div class="d">no white-screen</div></div>
             </div>
           </div>
@@ -487,6 +490,7 @@
               <div class="tile"><div class="t">Processing Worker</div><div class="d">queue consumer · retries</div></div>
               <div class="tile accent"><div class="t">AI Extraction</div><div class="d">OpenAI · strict schema</div></div>
               <div class="tile"><div class="t">Validation engine</div><div class="d">business rules</div></div>
+              <div class="tile accent"><div class="t">Realtime events</div><div class="d">GET /events/stream · SSE, tenant-scoped</div></div>
             </div>
           </div>
           <div class="connector"></div>
@@ -495,7 +499,7 @@
             <div class="plane-label"><span class="num">L4</span><span class="name">Data &amp; State</span><span class="own">FDE: isolation + migrations</span></div>
             <div class="tiles">
               <div class="tile"><div class="t">PostgreSQL 16</div><div class="d">Alembic · per-org scoped</div></div>
-              <div class="tile"><div class="t">Redis 7</div><div class="d">queue · rate-limit · revocation</div></div>
+              <div class="tile"><div class="t">Redis 7</div><div class="d">queue · rate-limit · revocation · pub/sub events</div></div>
               <div class="tile"><div class="t">Object storage</div><div class="d">S3 / local · signed URLs</div></div>
             </div>
           </div>

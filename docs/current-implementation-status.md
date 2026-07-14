@@ -51,6 +51,7 @@ This document describes what is implemented in the repository today. It intentio
 - Upload and invoice create use the authenticated user's organization and user ID instead of trusting client-supplied tenant or actor fields.
 - The status endpoint is wired to load persisted invoice state by authenticated tenant before applying transition rules.
 - Processing-job inspection and reprocess endpoints are tenant-scoped, and reprocess uses the authenticated user as actor.
+- `GET /api/v1/events/stream` provides an authenticated, tenant-scoped Server-Sent Events stream backed by Redis pub/sub (`app/services/events.py`); the worker and review/reprocess service paths publish a minimal `{type, invoice_id, processing_job_id, status}` signal after each relevant commit so the frontend can invalidate and refetch, rather than push full payloads over the wire.
 - A Dockerized React, Vite, TypeScript, and Tailwind frontend scaffold exists in `frontend/`.
 - The previous FastAPI-served static cockpit has been retired; FastAPI is API-only.
 - A host-side headless Chrome smoke script verifies the React frontend shell renders the cockpit workflow surfaces.
@@ -162,7 +163,21 @@ Docker Compose starts the FastAPI backend, worker, PostgreSQL, and Redis. The ba
 
 ### Frontend
 
-The frontend is now a Dockerized React/Vite application under `frontend/` and runs as a separate web service on port 3000. The previous dependency-free static cockpit has been removed. The current cockpit implements email/password login, logout, token-backed browser session storage, self-service password change, invoice upload, review queue loading, invoice detail, header-field corrections, approve/reject decisions with `expected_updated_at`, failed-job recovery, signed file opening, audit-log filtering, and admin user creation/listing/update/password reset. The React app is split into app, domain, feature, service, utility, and common-component layers. TanStack Query is configured at the app root, TanStack Table backs the operational tables, and the sign-in form uses React Hook Form with Zod validation. Browser smoke automation and authenticated Playwright workflow coverage exist. Line-item editing, richer dashboard analytics, and continued design-system hardening remain pending.
+The frontend is a Dockerized React/Vite/TypeScript application under `frontend/` and runs as a separate web service on port 3000. It implements httpOnly-cookie-backed login/logout with silent token refresh, self-service password change, invoice upload, review queue with header-field corrections, approve/reject decisions with `expected_updated_at` optimistic-concurrency handling, failed-job recovery, signed file opening, audit-log filtering, and admin user creation/listing/update/password reset.
+
+Data layer: all data fetching and mutation runs through `@tanstack/react-query` (`frontend/src/queries/`), one hook file per resource (invoices, jobs, audit, users, auth, realtime), replacing an earlier single-hook manual-state controller. Mutations invalidate the relevant query keys; a 409 `invoice_review_conflict` response surfaces a distinct "updated by someone else" toast instead of a generic error; a `SessionExpiredError` from any query/mutation is handled once, globally, rather than per call site.
+
+Navigation: `@tanstack/react-router` provides URL-synced routing (`/`, `/upload`, `/review`, `/failed`, `/audit`, `/users`), browser back/forward, and deep-linkable invoice review links (`/review?invoiceId=...`). The route tree is assembled in code (`frontend/src/app/router.ts`) rather than via the file-based codegen plugin, since that plugin requires Node >=20 and the primary local dev flow historically ran on Node 18; the Docker frontend image itself uses Node 20 and could adopt file-based routing later if desired.
+
+Design system: shadcn/ui (Radix primitives + Tailwind) provides Button, Card, Badge, Alert, AlertDialog, Table, Dropdown Menu, Command, Checkbox, Skeleton, and Dialog components, replacing hand-rolled CSS classes; a light/dark theme toggle is wired through CSS custom properties.
+
+Data tables (`frontend/src/components/common/DataTable.tsx`, backing invoices, failed jobs, audit logs, and users): client-side sorting, pagination, and column resizing; opt-in column-visibility toggling and CSV export on all four tables; opt-in row selection with bulk actions (approve/reject invoices, reprocess jobs) on the invoices and failed-jobs tables. Bulk actions are client-side batched (one request per row via `Promise.allSettled`) since the backend has no bulk endpoints, and report a single summary toast.
+
+Real-time updates: the frontend subscribes to `GET /api/v1/events/stream` (Server-Sent Events) while signed in and invalidates the matching react-query cache entries on receipt, so job/invoice status changes made in one browser tab (or by the worker) appear in other open tabs without a manual refresh. A connection indicator in the header shows live/reconnecting state.
+
+Safety and accessibility: confirmation dialogs gate reject-invoice (single and bulk) and password-reset actions; form fields wire `aria-invalid`/`aria-describedby` for validation errors; icon-only buttons carry `aria-label`; a skip-to-content link and a `Cmd/Ctrl+K` command palette (RBAC-aware tab navigation plus quick actions) support keyboard-first use; a breadcrumb appears on the invoice review drill-down.
+
+Browser smoke automation and authenticated Playwright workflow coverage exist. Line-item editing and richer dashboard analytics remain pending.
 
 ### Deployment
 

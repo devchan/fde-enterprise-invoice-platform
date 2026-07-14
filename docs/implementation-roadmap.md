@@ -116,7 +116,7 @@ Remaining hardening before Phase 4 is production-complete:
 
 Goal: route invoices to approval or review based on policy.
 
-Status: backend review workflow is implemented and a Dockerized React/Vite frontend application now lives in `frontend/`. Invoice list/detail endpoints, review correction persistence, approve/reject decisions, optimistic `updated_at` conflict checks, correction/decision audit events, authenticated reviewer attribution, tenant-scoped review queries, reviewer/admin role checks, and API integration tests exist. The previous static cockpit has been retired; the React frontend now covers email/password login, logout, self-service password change, invoice upload, failed processing-job dashboard and reprocess actions, audit-log viewing/filtering, admin user creation/listing/update/password reset, review queue loading, invoice detail, header-field corrections, approve/reject submission, signed file URL creation, and validation/extraction panels. The frontend uses a production-oriented source layout, TanStack Query root configuration, TanStack Table operational tables, React Hook Form/Zod sign-in validation, browser smoke automation, and authenticated Playwright workflow tests. Line-item editing and richer dashboard analytics remain pending.
+Status: backend review workflow is implemented and a Dockerized React/Vite frontend application now lives in `frontend/`. Invoice list/detail endpoints, review correction persistence, approve/reject decisions, optimistic `updated_at` conflict checks, correction/decision audit events, authenticated reviewer attribution, tenant-scoped review queries, reviewer/admin role checks, and API integration tests exist. The previous static cockpit has been retired; the React frontend now covers email/password login, logout, self-service password change, invoice upload, failed processing-job dashboard and reprocess actions, audit-log viewing/filtering, admin user creation/listing/update/password reset, review queue loading, invoice detail, header-field corrections, approve/reject submission, signed file URL creation, and validation/extraction panels. The frontend's data layer is fully migrated to TanStack Query (per-resource hooks, centralized session-expiry and 409-conflict handling, replacing an earlier single manual-state controller), navigation runs on TanStack Router (URL-synced tabs, deep-linkable review URLs), the design system is shadcn/ui (Radix + Tailwind, with a light/dark toggle), and the reviewer cockpit subscribes to a Server-Sent Events stream (`GET /api/v1/events/stream`, Redis pub/sub) so job/invoice status changes appear live instead of requiring a manual refresh. Line-item editing and richer dashboard analytics remain pending.
 
 Deliverables:
 
@@ -149,8 +149,14 @@ Implemented slice:
 - signed file URL opening from the review screen
 - host-side headless Chrome smoke coverage for the served cockpit shell
 - host-side authenticated Playwright workflow coverage for sign-in, protected navigation, upload, review queue visibility, audit filtering, and user creation
-- TanStack Table-backed operational tables for invoices, failed jobs, audit logs, and users
+- TanStack Table-backed operational tables for invoices, failed jobs, audit logs, and users, with column visibility, CSV export, resizing, and bulk row actions (client-side batched) on invoices and failed jobs
 - React Hook Form and Zod sign-in validation pattern
+- TanStack Query data layer (`frontend/src/queries/`) for all reads/writes, replacing manual `useState`/`useEffect` fetching
+- TanStack Router URL-based navigation (`/`, `/upload`, `/review`, `/failed`, `/audit`, `/users`), assembled in code rather than via file-based codegen
+- shadcn/ui component library with a light/dark theme toggle
+- `GET /api/v1/events/stream` Server-Sent Events subscription with react-query cache invalidation for live updates
+- confirmation dialogs for reject-invoice and password-reset actions
+- Cmd/Ctrl+K command palette and invoice-review breadcrumb
 
 Exit criteria:
 

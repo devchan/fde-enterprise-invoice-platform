@@ -95,6 +95,19 @@ Override ports:
 BACKEND_PORT=8011 POSTGRES_PORT=55433 REDIS_PORT=56381 docker compose up -d
 ```
 
+## Frontend
+
+The `frontend` service (`docker-compose.yml`, `frontend/Dockerfile`'s `dev` target) has **no bind mount**: `COPY frontend ./` and `npm ci` both run at image build time, so the running container is a snapshot of `frontend/` (source and `node_modules`) as of the last build. Editing frontend source on the host does not affect the running container — **any** frontend change, not only a dependency change, requires a rebuild to be reflected:
+
+```bash
+docker compose build frontend
+docker compose up -d --force-recreate frontend
+```
+
+For iterative frontend development, it is usually faster to run `npm run dev` directly on the host (against the same source) than to rebuild the image on every change; use the container rebuild when you specifically need to verify the Dockerized build.
+
+The image's builder stage uses `node:20.18.1-bookworm-slim`, so it satisfies dependencies (such as `@tanstack/react-router`) that require Node >=20 even when the host development machine runs an older Node version.
+
 ## Local File Storage
 
 Uploaded files are stored in the Docker volume `invoice_storage` at `/app/.local-storage` inside the backend container. This is the development storage adapter. The same API can use private S3-compatible object storage by setting `OBJECT_STORAGE_BACKEND=s3` plus the bucket, region, endpoint, and credentials.

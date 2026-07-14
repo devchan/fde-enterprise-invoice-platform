@@ -109,6 +109,13 @@ Login
 - Unit tests for validation routing and audit metadata
 - Unit tests for invoice file validation
 - Docker-backed API integration tests for the invoice workflow, signed file downloads, processing jobs, and tenant/RBAC guards
+- Reviewer cockpit data layer fully migrated to TanStack Query (per-resource hooks, centralized session-expiry/optimistic-concurrency handling)
+- TanStack Router URL-based navigation with deep-linkable invoice review URLs
+- shadcn/ui design system (Radix + Tailwind) with a light/dark theme toggle
+- Data tables with column visibility, CSV export, resizing, and bulk row actions (client-side batched) for invoices and failed jobs
+- `GET /api/v1/events/stream` Server-Sent Events endpoint (Redis pub/sub) for live invoice/job status updates in the cockpit, replacing polling
+- Confirmation dialogs for reject-invoice and password-reset actions; accessibility fixes for form errors and icon-only controls
+- Cmd/Ctrl+K command palette and invoice-review breadcrumb navigation in the cockpit
 
 ## Local Development
 
