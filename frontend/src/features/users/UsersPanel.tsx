@@ -1,6 +1,7 @@
-import type { FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { KeyRound, Loader2, Save, UserPlus } from "lucide-react";
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { DataTable } from "../../components/common/DataTable";
 import { Field } from "../../components/common/Field";
 import { PanelHeader } from "../../components/common/PanelHeader";
@@ -13,19 +14,23 @@ import type { UserRecord } from "../../domain/types";
 import { shortId } from "../../utils/format";
 
 export function UsersPanel({
-  busy,
+  creatingUser,
   users,
   onCreate,
   onRefresh,
   onResetPassword,
   onUpdate,
+  resettingPasswordUserId,
+  updatingUserId,
 }: {
-  busy: string | null;
+  creatingUser: boolean;
   users: UserRecord[];
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onRefresh: () => void;
-  onResetPassword: (user: UserRecord, event: FormEvent<HTMLFormElement>) => void;
+  onResetPassword: (user: UserRecord, password: string) => void;
   onUpdate: (user: UserRecord, event: FormEvent<HTMLFormElement>) => void;
+  resettingPasswordUserId: string | null;
+  updatingUserId: string | null;
 }) {
   const columns: ColumnDef<UserRecord>[] = [
     {
@@ -51,15 +56,23 @@ export function UsersPanel({
         <CardContent className="pt-6">
           <PanelHeader title="Users" onRefresh={onRefresh} />
           <div className="mt-4">
-            <DataTable columns={columns} data={users} emptyMessage="No users found." />
+            <DataTable
+              columns={columns}
+              data={users}
+              emptyMessage="No users found."
+              enableColumnVisibility
+              enableExport={{ filename: "users.csv" }}
+              getRowId={(user) => user.user_id}
+            />
           </div>
           <div className="mt-4 space-y-3">
             {users.map((user) => (
               <UserManagementRow
-                busy={busy}
                 key={user.user_id}
                 onResetPassword={onResetPassword}
                 onUpdate={onUpdate}
+                resetting={resettingPasswordUserId === user.user_id}
+                updating={updatingUserId === user.user_id}
                 user={user}
               />
             ))}
@@ -82,8 +95,8 @@ export function UsersPanel({
               </select>
             </div>
             <Field label="Temporary password" name="password" type="password" minLength={12} required />
-            <Button disabled={busy === "create-user"} type="submit">
-              {busy === "create-user" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            <Button disabled={creatingUser} type="submit">
+              {creatingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Create user
             </Button>
           </form>
@@ -96,18 +109,20 @@ export function UsersPanel({
 // Per-user row with two independent forms (edit details, reset password); busy keys are
 // scoped by user_id so a spinner only shows on the row/action actually in flight.
 function UserManagementRow({
-  busy,
   onResetPassword,
   onUpdate,
+  resetting,
+  updating,
   user,
 }: {
-  busy: string | null;
-  onResetPassword: (user: UserRecord, event: FormEvent<HTMLFormElement>) => void;
+  onResetPassword: (user: UserRecord, password: string) => void;
   onUpdate: (user: UserRecord, event: FormEvent<HTMLFormElement>) => void;
+  resetting: boolean;
+  updating: boolean;
   user: UserRecord;
 }) {
-  const updating = busy === `user:update:${user.user_id}`;
-  const resetting = busy === `user:password:${user.user_id}`;
+  const resetFormRef = useRef<HTMLFormElement>(null);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   return (
     <Card>
@@ -147,7 +162,16 @@ function UserManagementRow({
             </Button>
           </form>
 
-          <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={(event) => onResetPassword(user, event)}>
+          <form
+            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]"
+            onSubmit={(event) => {
+              // Gates behind confirmation instead of submitting immediately; onConfirm
+              // below reads this same form's FormData directly.
+              event.preventDefault();
+              setConfirmResetOpen(true);
+            }}
+            ref={resetFormRef}
+          >
             <Field label="New password" name="password" type="password" minLength={12} required />
             <Button disabled={resetting} type="submit" variant="outline">
               {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
@@ -156,6 +180,22 @@ function UserManagementRow({
           </form>
         </div>
       </CardContent>
+
+      <ConfirmDialog
+        confirmLabel="Reset password"
+        description={`This immediately invalidates ${user.email}'s current password. They'll need the new one to sign in.`}
+        onConfirm={() => {
+          setConfirmResetOpen(false);
+          if (resetFormRef.current) {
+            const password = String(new FormData(resetFormRef.current).get("password") || "");
+            onResetPassword(user, password);
+            resetFormRef.current.reset();
+          }
+        }}
+        onOpenChange={setConfirmResetOpen}
+        open={confirmResetOpen}
+        title="Reset this user's password?"
+      />
     </Card>
   );
 }

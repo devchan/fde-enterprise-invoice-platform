@@ -20,6 +20,7 @@ from .audit_log import (
     processing_job_retry_scheduled_event,
     processing_job_status_changed_event,
 )
+from .events import publish_event
 from .invoice_workflow import InvoiceStatus, transition_invoice_status
 
 
@@ -190,6 +191,15 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
     # job/invoice statuses atomically.
     db.commit()
     db.refresh(job)
+    publish_event(
+        invoice.organization_id,
+        {
+            "type": "job.completed",
+            "invoice_id": str(invoice.id),
+            "processing_job_id": str(job.id),
+            "status": job.status,
+        },
+    )
 
     return ProcessingJobResult(
         processing_job_id=job.id,
@@ -323,6 +333,15 @@ def requeue_processing_job(
     db.commit()
     enqueue_processing_job(redis_client, job.id)
     db.refresh(job)
+    publish_event(
+        invoice.organization_id,
+        {
+            "type": "job.requeued",
+            "invoice_id": str(invoice.id),
+            "processing_job_id": str(job.id),
+            "status": job.status,
+        },
+    )
     return job
 
 
@@ -412,6 +431,16 @@ def record_processing_job_failure(
         db.commit()
         enqueue_processing_job(redis_client, job.id)
         db.refresh(job)
+        if invoice is not None:
+            publish_event(
+                invoice.organization_id,
+                {
+                    "type": "job.requeued",
+                    "invoice_id": str(invoice.id),
+                    "processing_job_id": str(job.id),
+                    "status": job.status,
+                },
+            )
         return ProcessingJobResult(
             processing_job_id=job.id,
             job_type=ProcessingJobType(job.job_type),
@@ -421,6 +450,16 @@ def record_processing_job_failure(
     _mark_job_failed(db, job=job, error_message=error_message)
     db.commit()
     db.refresh(job)
+    if invoice is not None:
+        publish_event(
+            invoice.organization_id,
+            {
+                "type": "job.failed",
+                "invoice_id": str(invoice.id),
+                "processing_job_id": str(job.id),
+                "status": job.status,
+            },
+        )
     return ProcessingJobResult(
         processing_job_id=job.id,
         job_type=ProcessingJobType(job.job_type),

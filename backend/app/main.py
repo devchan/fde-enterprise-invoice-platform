@@ -1,9 +1,12 @@
 """FastAPI application factory: wires middleware, exception handlers, routes,
 and tracing into a single app instance for both the API server and tests."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from redis.asyncio import Redis as AsyncRedis
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
@@ -15,6 +18,17 @@ from app.middleware.rate_limit import UploadRateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # One shared async connection pool for the SSE endpoint's pub/sub subscriptions,
+    # opened once at startup rather than per-connection.
+    app.state.redis = AsyncRedis.from_url(settings.redis_url)
+    try:
+        yield
+    finally:
+        await app.state.redis.aclose()
+
+
 def create_app() -> FastAPI:
     # Configure structured logging before anything emits logs during startup.
     configure_logging()
@@ -22,6 +36,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version="0.1.0",
         description="Enterprise AI invoice processing platform.",
+        lifespan=lifespan,
     )
     # Starlette runs middleware in reverse registration order, so the last one
     # added is outermost. Registering request logging after the rate limiter

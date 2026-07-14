@@ -62,7 +62,14 @@ export function AuditPanel({
           </Button>
         </form>
         <div className="mt-4">
-          <DataTable columns={auditColumns} data={logs} emptyMessage="No audit logs found." />
+          <DataTable
+            columns={auditColumns}
+            data={logs}
+            emptyMessage="No audit logs found."
+            enableColumnVisibility
+            enableExport={{ filename: "audit-logs.csv" }}
+            getRowId={(log) => log.audit_log_id}
+          />
         </div>
       </CardContent>
     </Card>

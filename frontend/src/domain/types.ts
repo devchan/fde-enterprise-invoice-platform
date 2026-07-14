@@ -120,3 +120,8 @@ export type ExtractionProvidersResponse = {
   default: string | null;
   providers: ExtractionProvider[];
 };
+
+export type LoginCredentials = {
+  email: string;
+  password: string;
+};

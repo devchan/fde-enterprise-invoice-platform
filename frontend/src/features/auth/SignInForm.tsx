@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Field } from "../../components/common/Field";
 import { Button } from "../../components/ui/button";
-import type { LoginCredentials } from "../../app/useCockpitController";
+import type { LoginCredentials } from "../../domain/types";
 
 // Client-side validation for immediate feedback; the server still authoritatively
 // validates credentials. Only checks shape here (valid email, non-empty password).
@@ -32,21 +32,21 @@ export function SignInForm({
   return (
     <form className="mt-5 space-y-3 border-t border-border pt-5" onSubmit={handleSubmit(onSubmit)}>
       <Field
+        error={errors.email?.message}
         label="Email"
         placeholder="admin@example.com"
         type="email"
         required
         {...register("email")}
       />
-      {errors.email ? <p className="field-error">{errors.email.message}</p> : null}
       <Field
+        error={errors.password?.message}
         label="Password"
         placeholder="Password"
         type="password"
         required
         {...register("password")}
       />
-      {errors.password ? <p className="field-error">{errors.password.message}</p> : null}
       <Button className="w-full" disabled={busy} type="submit">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
         Sign in

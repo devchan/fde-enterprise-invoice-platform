@@ -7,17 +7,19 @@ import { Card, CardContent } from "../../components/ui/card";
 import type { ProcessingJob } from "../../domain/types";
 
 export function FailedJobsPanel({
-  busy,
   canReprocess,
   jobs,
+  onBulkReprocess,
   onRefresh,
   onReprocess,
+  reprocessingJobId,
 }: {
-  busy: string | null;
   canReprocess: boolean;
   jobs: ProcessingJob[];
+  onBulkReprocess: (jobs: ProcessingJob[]) => void;
   onRefresh: () => void;
   onReprocess: (job: ProcessingJob) => void;
+  reprocessingJobId: string | null;
 }) {
   const columns: ColumnDef<ProcessingJob>[] = [
     {
@@ -46,13 +48,17 @@ export function FailedJobsPanel({
       cell: ({ row }) => (
         // Disabled without reprocess rights, or while this specific job's request is in flight.
         <Button
-          disabled={!canReprocess || busy === `job:${row.original.processing_job_id}`}
+          disabled={!canReprocess || reprocessingJobId === row.original.processing_job_id}
           onClick={() => onReprocess(row.original)}
           size="sm"
           type="button"
           variant="outline"
         >
-          {busy === `job:${row.original.processing_job_id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {reprocessingJobId === row.original.processing_job_id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Reprocess
         </Button>
       ),
@@ -67,7 +73,18 @@ export function FailedJobsPanel({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Reprocess actions require admin or reviewer access.</p>
         ) : null}
         <div className="mt-4">
-          <DataTable columns={columns} data={jobs} emptyMessage="No failed jobs." />
+          <DataTable
+            bulkActions={
+              canReprocess ? [{ label: "Reprocess", icon: RefreshCw, onClick: onBulkReprocess }] : undefined
+            }
+            columns={columns}
+            data={jobs}
+            emptyMessage="No failed jobs."
+            enableColumnVisibility
+            enableExport={{ filename: "failed-jobs.csv" }}
+            enableRowSelection={canReprocess}
+            getRowId={(job) => job.processing_job_id}
+          />
         </div>
       </CardContent>
     </Card>

@@ -21,6 +21,7 @@ from app.services.audit_log import (
     invoice_review_decision_event,
     invoice_status_changed_event,
 )
+from app.services.events import publish_event
 from app.services.invoice_intake import DuplicateInvoiceError, InvoiceNotFoundError
 from app.services.invoice_workflow import InvoiceStatus, transition_invoice_status
 
@@ -185,6 +186,15 @@ def submit_invoice_review(
         db.rollback()
         _raise_duplicate_invoice_if_applicable(exc)
         raise
+
+    publish_event(
+        invoice.organization_id,
+        {
+            "type": "invoice.status_changed",
+            "invoice_id": str(invoice.id),
+            "status": invoice.status,
+        },
+    )
 
     return get_invoice_detail(db, invoice.id, organization_id=organization_id)
 

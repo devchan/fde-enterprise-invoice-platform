@@ -1,6 +1,7 @@
-import type { FormEvent } from "react";
+import { useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CheckCircle2, Download, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { DataBlock } from "../../components/common/DataBlock";
 import { DataTable } from "../../components/common/DataTable";
 import { EmptyPanel } from "../../components/common/EmptyPanel";
@@ -14,22 +15,34 @@ import type { InvoiceDetail, InvoiceFile } from "../../domain/types";
 import { formatDate } from "../../utils/format";
 
 export function ReviewPanel({
-  busy,
   invoices,
+  isApproving,
+  isRejecting,
+  onBulkReview,
+  onClearSelection,
   onOpenFile,
   onRefresh,
   onReview,
   onSelect,
+  openingFileId,
   selectedInvoice,
 }: {
-  busy: string | null;
   invoices: InvoiceDetail[];
+  isApproving: boolean;
+  isRejecting: boolean;
+  onBulkReview: (decision: "approve" | "reject", invoices: InvoiceDetail[]) => void;
+  onClearSelection: () => void;
   onOpenFile: (file: InvoiceFile) => void;
   onRefresh: () => void;
-  onReview: (decision: "approve" | "reject", event: FormEvent<HTMLFormElement>) => void;
+  onReview: (decision: "approve" | "reject", formData: FormData) => void;
   onSelect: (invoiceId: string) => void;
+  openingFileId: string | null;
   selectedInvoice: InvoiceDetail | null;
 }) {
+  const reviewFormRef = useRef<HTMLFormElement>(null);
+  const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
+  const [pendingBulkReject, setPendingBulkReject] = useState<InvoiceDetail[] | null>(null);
+
   // Defined inside the component so the invoice-number cell can close over onSelect.
   const invoiceColumns: ColumnDef<InvoiceDetail>[] = [
     {
@@ -63,12 +76,24 @@ export function ReviewPanel({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Invoices</h2>
-            <Button onClick={onRefresh} size="icon" title="Refresh invoices" type="button" variant="outline">
+            <Button aria-label="Refresh invoices" onClick={onRefresh} size="icon" title="Refresh invoices" type="button" variant="outline">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
           <div className="mt-4">
-            <DataTable columns={invoiceColumns} data={invoices} emptyMessage="No invoices loaded." />
+            <DataTable
+              bulkActions={[
+                { label: "Approve", icon: CheckCircle2, onClick: (rows) => onBulkReview("approve", rows) },
+                { label: "Reject", icon: XCircle, onClick: (rows) => setPendingBulkReject(rows), variant: "destructive" },
+              ]}
+              columns={invoiceColumns}
+              data={invoices}
+              emptyMessage="No invoices loaded."
+              enableColumnVisibility
+              enableExport={{ filename: "invoices.csv" }}
+              enableRowSelection
+              getRowId={(invoice) => invoice.invoice_id}
+            />
             {selectedInvoice ? (
               <p className="mt-3 text-xs text-muted-foreground">Selected invoice: {selectedInvoice.invoice_number}</p>
             ) : null}
@@ -81,6 +106,13 @@ export function ReviewPanel({
       ) : (
         <Card>
           <CardHeader>
+            <nav aria-label="Breadcrumb" className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <button className="hover:text-foreground hover:underline" onClick={onClearSelection} type="button">
+                Review Queue
+              </button>
+              <span aria-hidden="true">/</span>
+              <span aria-current="page">{selectedInvoice.invoice_number}</span>
+            </nav>
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
                 <CardTitle className="text-xl">{selectedInvoice.invoice_number}</CardTitle>
@@ -95,12 +127,12 @@ export function ReviewPanel({
             <form
               className="grid gap-4 md:grid-cols-2"
               onSubmit={(event) => {
-                // One form, two submit buttons: read the clicked button's value to
-                // decide approve vs reject (default to approve if the submitter is unknown).
-                const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-                const decision = submitter?.value === "reject" ? "reject" : "approve";
-                onReview(decision, event);
+                // Only Approve submits natively now; Reject is diverted to a confirmation
+                // dialog (below) whose onConfirm reads this same form's FormData directly.
+                event.preventDefault();
+                onReview("approve", new FormData(event.currentTarget));
               }}
+              ref={reviewFormRef}
             >
               {/* Prefilled with the extracted values so reviewers edit-in-place to correct them. */}
               <Field label="Invoice number" name="invoice_number" defaultValue={selectedInvoice.invoice_number} />
@@ -112,26 +144,63 @@ export function ReviewPanel({
                 <Textarea id="notes" name="notes" rows={3} placeholder="Decision notes" />
               </div>
               <div className="flex flex-wrap gap-2 md:col-span-2">
-                <Button disabled={busy === "review:approve"} name="decision" type="submit" value="approve">
+                <Button disabled={isApproving} type="submit">
                   <CheckCircle2 className="h-4 w-4" />
                   Approve
                 </Button>
-                <Button disabled={busy === "review:reject"} name="decision" type="submit" value="reject" variant="destructive">
+                <Button
+                  disabled={isRejecting}
+                  onClick={() => setConfirmRejectOpen(true)}
+                  type="button"
+                  variant="destructive"
+                >
                   <XCircle className="h-4 w-4" />
                   Reject
                 </Button>
               </div>
             </form>
 
-            <DetailSections invoice={selectedInvoice} busy={busy} onOpenFile={onOpenFile} />
+            <DetailSections invoice={selectedInvoice} openingFileId={openingFileId} onOpenFile={onOpenFile} />
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        confirmLabel="Reject invoice"
+        description={`This will reject "${selectedInvoice?.invoice_number}" and record the decision in the audit log. This cannot be undone.`}
+        onConfirm={() => {
+          setConfirmRejectOpen(false);
+          if (reviewFormRef.current) onReview("reject", new FormData(reviewFormRef.current));
+        }}
+        onOpenChange={setConfirmRejectOpen}
+        open={confirmRejectOpen}
+        title="Reject this invoice?"
+      />
+
+      <ConfirmDialog
+        confirmLabel={`Reject ${pendingBulkReject?.length ?? 0} invoice${pendingBulkReject?.length === 1 ? "" : "s"}`}
+        description="This will reject every selected invoice and record each decision in the audit log. This cannot be undone."
+        onConfirm={() => {
+          if (pendingBulkReject) onBulkReview("reject", pendingBulkReject);
+          setPendingBulkReject(null);
+        }}
+        onOpenChange={(open) => !open && setPendingBulkReject(null)}
+        open={pendingBulkReject !== null}
+        title="Reject selected invoices?"
+      />
     </section>
   );
 }
 
-function DetailSections({ invoice, busy, onOpenFile }: { invoice: InvoiceDetail; busy: string | null; onOpenFile: (file: InvoiceFile) => void }) {
+function DetailSections({
+  invoice,
+  openingFileId,
+  onOpenFile,
+}: {
+  invoice: InvoiceDetail;
+  openingFileId: string | null;
+  onOpenFile: (file: InvoiceFile) => void;
+}) {
   return (
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
       <DataBlock title="Validation">
@@ -148,7 +217,7 @@ function DetailSections({ invoice, busy, onOpenFile }: { invoice: InvoiceDetail;
           <button className="list-row" key={file.file_id} onClick={() => onOpenFile(file)} type="button">
             <span>{file.mime_type}</span>
             <span className="flex items-center gap-1 text-primary">
-              {busy === `file:${file.file_id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {openingFileId === file.file_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Open
             </span>
           </button>

@@ -6,6 +6,7 @@ sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
 alembic==1.14.0
 redis==5.2.1
+sse-starlette==3.4.5
 python-multipart==0.0.31
 # invoice_extraction.py uses the Responses API (client.responses.create), which
 # only exists in the SDK from 1.66 onward; 1.59 lacked it and crashed extraction.
