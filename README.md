@@ -78,6 +78,8 @@ Login
 - OpenAI Responses API extractor wiring with development fallback
 - Provider token usage and configurable cost estimate persistence
 - Worker persists extraction payloads, line items, and validation results
+- pgvector-backed invoice embeddings (OpenAI text-embedding-3-small with deterministic dev fallback) written by the worker after extraction
+- Tenant-scoped similar-invoice search endpoint using pgvector cosine distance over an HNSW index
 - Failed processing job inspection and manual reprocess endpoints
 - Bounded automatic retry policy for worker processing failures
 - Invoice list, detail, review correction, approve, and reject endpoints

@@ -120,6 +120,23 @@ class InvoiceListResponse(BaseModel):
     invoices: list[InvoiceDetailResponse]
 
 
+class SimilarInvoiceResponse(BaseModel):
+    invoice_id: UUID
+    invoice_number: str
+    supplier_id: UUID | None
+    status: InvoiceStatus
+    total_amount: Decimal | None
+    currency: str
+    # Cosine similarity of the invoices' embeddings: 1.0 = same content
+    # direction, 0.0 = unrelated. Useful for near-duplicate triage in review.
+    similarity: float
+
+
+class SimilarInvoicesResponse(BaseModel):
+    invoice_id: UUID
+    similar_invoices: list[SimilarInvoiceResponse]
+
+
 class InvoiceReviewRequest(BaseModel):
     reviewer_id: UUID | None = None
     decision: ReviewDecision

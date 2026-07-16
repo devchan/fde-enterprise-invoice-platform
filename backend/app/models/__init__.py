@@ -4,6 +4,7 @@
 from app.models.audit import AuditLog
 from app.models.invoice import (
     Invoice,
+    InvoiceEmbedding,
     InvoiceExtraction,
     InvoiceFile,
     InvoiceLineItem,
@@ -18,6 +19,7 @@ from app.models.user import User
 
 __all__ = [
     "Invoice",
+    "InvoiceEmbedding",
     "InvoiceExtraction",
     "InvoiceFile",
     "InvoiceLineItem",

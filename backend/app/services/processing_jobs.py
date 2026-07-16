@@ -210,6 +210,10 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
     # job/invoice statuses atomically.
     db.commit()
     db.refresh(job)
+    # Embedding happens after the extraction commit and is best-effort: a
+    # provider hiccup here must not fail a job whose extraction already
+    # succeeded. Similar-invoice search simply has no row until a later run.
+    _embed_invoice(db, invoice=invoice, payload=extraction_result.payload)
     publish_event(
         invoice.organization_id,
         {
@@ -225,6 +229,37 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
         job_type=ProcessingJobType(job.job_type),
         status=ProcessingJobStatus(job.status),
     )
+
+
+def _embed_invoice(db: Any, *, invoice: Any, payload: Any) -> None:
+    import structlog
+
+    from app.services.invoice_embedding import (
+        build_invoice_embedder,
+        embedding_source_text,
+        persist_invoice_embedding,
+    )
+
+    logger = structlog.get_logger("app.services.processing_jobs")
+    try:
+        source_text = embedding_source_text(invoice=invoice, payload=payload)
+        result = build_invoice_embedder().embed(text=source_text)
+        persist_invoice_embedding(db, invoice=invoice, source_text=source_text, result=result)
+        db.commit()
+        logger.info(
+            "invoice_embedding.persisted",
+            invoice_id=str(invoice.id),
+            model_name=result.model_name,
+        )
+    except Exception as exc:
+        # Roll back so a partial embedding write can't leak into the session
+        # the caller keeps using for the completion event.
+        db.rollback()
+        logger.warning(
+            "invoice_embedding.failed",
+            invoice_id=str(invoice.id),
+            error_message=str(exc),
+        )
 
 
 def get_processing_job(db: Any, processing_job_id: UUID):

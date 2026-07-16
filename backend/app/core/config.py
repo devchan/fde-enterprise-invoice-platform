@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     openai_extraction_model: str = "gpt-4.1"
     openai_input_cost_per_million_tokens: str = "0"
     openai_output_cost_per_million_tokens: str = "0"
+    # Embeddings power similar-invoice search; dimensions must match the
+    # invoice_embeddings vector column (1536 = text-embedding-3-small).
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_cost_per_million_tokens: str = "0"
+    invoice_similarity_result_limit: int = 5
     # Gemini is an alternative extraction provider (free tier). Its key being set
     # is what makes the "gemini" option selectable; empty means unavailable.
     gemini_api_key: str = ""

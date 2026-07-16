@@ -116,6 +116,9 @@ Implemented pure-Python services:
 - review approve/reject workflow
 - review correction and decision audit events
 - provider response parsing, invalid-response errors, token usage parsing, and cost estimate helpers
+- invoice embedding service with OpenAI `text-embedding-3-small` and a deterministic development fallback embedder
+- best-effort worker embedding persistence after extraction (failures logged, never fail the job)
+- pgvector-backed tenant-scoped similar-invoice search (cosine distance over an HNSW index)
 
 ### Tests
 

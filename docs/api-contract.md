@@ -283,6 +283,25 @@ Current behavior:
 - returns `invoice_file_not_found` when the file row does not exist
 - returns `invoice_file_storage_missing` when the database row exists but the object is missing from storage
 
+### `GET /api/v1/invoices/{invoice_id}/similar`
+
+Status: Implemented and covered by API integration tests, including tenant isolation and ranking assertions.
+
+Purpose: surface the most semantically similar invoices in the caller's organization for reviewer context and near-duplicate triage.
+
+Current behavior:
+
+- requires a valid bearer token for a database-backed user
+- resolves the invoice through the same organization-scoped lookup as the detail endpoint (`invoice_not_found` outside the tenant)
+- ranks candidates by pgvector cosine distance over the `invoice_embeddings` HNSW index, excluding the invoice itself
+- accepts `limit` (1–20, default from `INVOICE_SIMILARITY_RESULT_LIMIT`, 5)
+- returns an empty list when the invoice has no embedding yet (extraction not completed)
+- responds with each candidate's id, invoice number, supplier, status, amount, currency, and a `similarity` score (1.0 = identical direction)
+
+Target behavior:
+
+- flag high-similarity pairs (e.g. >0.95) as potential duplicates directly in the review UI
+
 ### `GET /api/v1/invoices/{invoice_id}`
 
 Status: Implemented for backend data retrieval with authenticated tenant enforcement.

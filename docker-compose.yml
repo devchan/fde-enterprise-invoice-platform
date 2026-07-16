@@ -128,7 +128,7 @@ services:
     command: ["npm", "run", "dev"]
 
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: invoice_platform
       POSTGRES_USER: invoice_user

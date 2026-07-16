@@ -5,6 +5,9 @@ pydantic-settings==2.7.1
 sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
 alembic==1.14.0
+# SQLAlchemy Vector column type + query operators for the pgvector extension
+# (invoice embeddings / similar-invoice search).
+pgvector==0.4.1
 redis==5.2.1
 sse-starlette==3.4.5
 python-multipart==0.0.31

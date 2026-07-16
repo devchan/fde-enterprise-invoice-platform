@@ -203,3 +203,28 @@ Current implementation:
 
 - the worker creates or reuses prompt version `2026-07-10.v1`
 - extraction rows store both `prompt_version_id` and the prompt version string for compatibility
+
+### `invoice_embeddings`
+
+Purpose: semantic fingerprint of an invoice's extracted content for pgvector similarity search (similar-invoice lookup, near-duplicate triage).
+
+Current fields:
+
+- `id`
+- `invoice_id` (unique — one current embedding per invoice)
+- `model_name`
+- `source_text` (the exact text embedded, kept for traceability and re-embedding)
+- `embedding` (`vector(1536)`, matching OpenAI `text-embedding-3-small`)
+- `input_tokens`
+- `estimated_cost`
+- timestamps
+
+Rules:
+
+- re-extraction must update the row in place, never append, so search never sees stale duplicates
+- similarity queries must always be scoped to one organization
+
+Current implementation:
+
+- written best-effort by the worker after the extraction commit (an embedding failure never fails a completed extraction)
+- queried by `GET /api/v1/invoices/{invoice_id}/similar` via pgvector cosine distance over an HNSW index

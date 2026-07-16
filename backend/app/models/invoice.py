@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Date, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -50,6 +51,7 @@ class Invoice(TimestampMixin, Base):
     validation_results: Mapped[list["InvoiceValidationResult"]] = relationship(back_populates="invoice")
     reviews: Mapped[list["InvoiceReview"]] = relationship(back_populates="invoice")
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="invoice")
+    embedding: Mapped["InvoiceEmbedding | None"] = relationship(back_populates="invoice")
 
 
 # The uploaded document(s) for an invoice. The bytes live in object storage;
@@ -115,6 +117,31 @@ class InvoiceValidationResult(TimestampMixin, Base):
     passed: Mapped[bool] = mapped_column(nullable=False)
 
     invoice: Mapped[Invoice] = relationship(back_populates="validation_results")
+
+
+# Semantic fingerprint of an invoice's extracted content, used for
+# similar-invoice lookup and near-duplicate detection via pgvector. One row
+# per invoice: re-extraction replaces the embedding rather than appending.
+class InvoiceEmbedding(TimestampMixin, Base):
+    __tablename__ = "invoice_embeddings"
+    __table_args__ = (
+        UniqueConstraint("invoice_id", name="uq_invoice_embedding_invoice"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    invoice_id: Mapped[UUID] = mapped_column(ForeignKey("invoices.id"), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # The exact text that was embedded, kept for traceability (mirrors how
+    # extractions persist their prompt version) and to allow re-embedding with
+    # a different model without re-running extraction.
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # Dimension matches OpenAI text-embedding-3-small; the dev fallback embedder
+    # pads to the same width so both providers share one column.
+    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
+    input_tokens: Mapped[int | None]
+    estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+
+    invoice: Mapped[Invoice] = relationship(back_populates="embedding")
 
 
 # A human reviewer's decision on an invoice, including any field corrections

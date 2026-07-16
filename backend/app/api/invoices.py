@@ -31,9 +31,12 @@ from app.schemas.invoice import (
     InvoiceStatusTransitionRequest,
     InvoiceStatusTransitionResponse,
     InvoiceValidationResultResponse,
+    SimilarInvoiceResponse,
+    SimilarInvoicesResponse,
 )
 from app.services.file_storage import InvoiceFileStorageError, read_invoice_file
 from app.services.file_validation import InvalidInvoiceFileError
+from app.services.invoice_embedding import find_similar_invoices
 from app.services.invoice_file_access import (
     InvoiceFileNotFoundError,
     InvoiceFileSignatureError,
@@ -326,6 +329,50 @@ def download_invoice_file(
         content=file_bytes,
         media_type=invoice_file.mime_type,
         headers={"Content-Disposition": 'attachment; filename="invoice-file"'},
+    )
+
+
+@router.get("/{invoice_id}/similar", response_model=SimilarInvoicesResponse)
+def get_similar_invoices(
+    invoice_id: UUID,
+    limit: int = Query(default=None, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    request_id: str | None = Header(default=None, alias="X-Request-ID"),
+) -> SimilarInvoicesResponse:
+    # Resolve through the org-scoped detail lookup so tenancy is enforced the
+    # same way as the detail endpoint; similarity search then stays inside the
+    # caller's organization by construction.
+    try:
+        invoice = get_invoice_detail(
+            db,
+            invoice_id,
+            organization_id=current_user.organization_id,
+        )
+    except InvoiceNotFoundError as exc:
+        raise api_error(
+            http_status=status.HTTP_404_NOT_FOUND,
+            code="invoice_not_found",
+            message=str(exc),
+            details={"invoice_id": str(invoice_id)},
+            request_id=request_id,
+        ) from exc
+
+    similar = find_similar_invoices(db, invoice=invoice, limit=limit)
+    return SimilarInvoicesResponse(
+        invoice_id=invoice.id,
+        similar_invoices=[
+            SimilarInvoiceResponse(
+                invoice_id=item.invoice_id,
+                invoice_number=item.invoice_number,
+                supplier_id=item.supplier_id,
+                status=InvoiceStatus(item.status),
+                total_amount=item.total_amount,
+                currency=item.currency,
+                similarity=item.similarity,
+            )
+            for item in similar
+        ],
     )
 
 
