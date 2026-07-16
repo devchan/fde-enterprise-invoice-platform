@@ -9,9 +9,9 @@ Model/service imports are done lazily inside functions to avoid import cycles
 the worker without eagerly loading the ORM.
 """
 
+import time
 from dataclasses import dataclass
 from enum import StrEnum
-import time
 from typing import Any
 from uuid import UUID
 
