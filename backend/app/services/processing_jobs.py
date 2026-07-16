@@ -381,6 +381,18 @@ def mark_processing_job_failed(db: Any, processing_job_id: UUID, error_message: 
     )
 
 
+def is_retryable_processing_error(exc: BaseException) -> bool:
+    # Permanent extraction failures (bad auth, exhausted quota, malformed
+    # request) waste attempts and delay the terminal-failure signal if
+    # requeued, so only TransientExtractionError (and non-extraction errors,
+    # e.g. infra hiccups) are retryable.
+    from app.services.invoice_extraction import ExtractionError, TransientExtractionError
+
+    if isinstance(exc, ExtractionError):
+        return isinstance(exc, TransientExtractionError)
+    return True
+
+
 def record_processing_job_failure(
     db: Any,
     redis_client: Any,
@@ -388,6 +400,7 @@ def record_processing_job_failure(
     error_message: str,
     *,
     max_attempts: int,
+    retryable: bool = True,
 ) -> ProcessingJobResult:
     from app.models.audit import AuditLog
     from app.models.invoice import Invoice
@@ -400,9 +413,9 @@ def record_processing_job_failure(
     job.attempts += 1
     invoice = db.get(Invoice, job.invoice_id)
 
-    # Under the attempt cap: requeue for another try; at/over the cap: fail
-    # permanently (handled in the fall-through below).
-    if job.attempts < max_attempts:
+    # Under the attempt cap: requeue for another try; at/over the cap, or for a
+    # non-retryable (permanent) error: fail immediately (fall-through below).
+    if retryable and job.attempts < max_attempts:
         previous_status = job.status
         job.status = ProcessingJobStatus.QUEUED.value
         job.last_error = error_message

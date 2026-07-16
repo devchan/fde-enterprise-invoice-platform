@@ -68,7 +68,8 @@ class ExtractionError(RuntimeError):
 
 
 # Transient failures (timeouts, rate limits) are safe to retry; the worker
-# distinguishes this from permanent ExtractionError to decide whether to requeue.
+# (via is_retryable_processing_error) distinguishes this from permanent
+# ExtractionError to decide whether to requeue or fail immediately.
 class TransientExtractionError(ExtractionError):
     pass
 

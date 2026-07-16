@@ -17,6 +17,7 @@ from app.db.session import SessionLocal
 from app.models.processing import ProcessingJob
 from app.services.processing_jobs import (
     dequeue_processing_job,
+    is_retryable_processing_error,
     process_invoice_extraction_job,
     record_processing_job_failure,
 )
@@ -80,6 +81,7 @@ def run_worker() -> None:
                     processing_job_id,
                     str(exc),
                     max_attempts=settings.processing_job_max_attempts,
+                    retryable=is_retryable_processing_error(exc),
                 )
                 logger.info(
                     "processing_job.failure_recorded",

@@ -25,8 +25,14 @@ if HAS_REQUIRED_MODULES:
     from app.models.processing import ProcessingJob
     from app.models.supplier import Supplier
     from app.models.user import User
+    from app.services.invoice_extraction import ExtractionError, TransientExtractionError
     from app.services.invoice_workflow import InvoiceStatus
-    from app.services.processing_jobs import ProcessingJobStatus, ProcessingJobType, record_processing_job_failure
+    from app.services.processing_jobs import (
+        ProcessingJobStatus,
+        ProcessingJobType,
+        is_retryable_processing_error,
+        record_processing_job_failure,
+    )
 
 
 @unittest.skipIf(not HAS_REQUIRED_MODULES, "backend integration dependencies are not installed")
@@ -392,6 +398,37 @@ class SecurityApiTest(unittest.TestCase):
         self.assertEqual(refreshed_job.status, ProcessingJobStatus.FAILED.value)
         self.assertEqual(refreshed_job.last_error, "permanent provider error")
         self.assertEqual(refreshed_invoice.status, InvoiceStatus.FAILED.value)
+
+    def test_processing_job_failure_fails_immediately_when_not_retryable(self) -> None:
+        # A permanent provider error (e.g. bad auth, exhausted quota) must not
+        # be requeued just because attempts are still under the cap.
+        invoice = self._create_invoice(status=InvoiceStatus.QUEUED, uploaded_by=self.uploader.id)
+        job = self._create_job(invoice_id=invoice.id, status=ProcessingJobStatus.QUEUED, attempts=0)
+        redis_client = FakeRedis()
+
+        result = record_processing_job_failure(
+            self.db,
+            redis_client,
+            job.id,
+            "permanent provider error",
+            max_attempts=3,
+            retryable=False,
+        )
+
+        self.assertEqual(result.status, ProcessingJobStatus.FAILED)
+        self.assertEqual(redis_client.enqueued_job_ids, [])
+        self.assertEqual(redis_client.delayed_job_ids, [])
+        self.db.expire_all()
+        refreshed_job = self.db.get(ProcessingJob, job.id)
+        refreshed_invoice = self.db.get(Invoice, invoice.id)
+        self.assertEqual(refreshed_job.attempts, 1)
+        self.assertEqual(refreshed_job.status, ProcessingJobStatus.FAILED.value)
+        self.assertEqual(refreshed_invoice.status, InvoiceStatus.FAILED.value)
+
+    def test_is_retryable_processing_error_classifies_extraction_errors(self) -> None:
+        self.assertTrue(is_retryable_processing_error(TransientExtractionError("transient")))
+        self.assertFalse(is_retryable_processing_error(ExtractionError("permanent")))
+        self.assertTrue(is_retryable_processing_error(RuntimeError("some other infra error")))
 
     def test_audit_logs_are_limited_to_authenticated_user_tenant(self) -> None:
         own_invoice = self._create_invoice(status=InvoiceStatus.UPLOADED)
