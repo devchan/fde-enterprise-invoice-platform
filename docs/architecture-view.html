@@ -442,8 +442,8 @@
     <div class="metastrip">
       <div class="tag"><span>api</span> FastAPI · Starlette 1.3 · Python 3.12</div>
       <div class="tag"><span>web</span> React 19 · Vite · TypeScript</div>
-      <div class="tag"><span>data</span> PostgreSQL 16 · Redis 7 · S3</div>
-      <div class="tag"><span>ai</span> OpenAI · strict JSON schema</div>
+      <div class="tag"><span>data</span> PostgreSQL 16 + pgvector · Redis 7 · S3</div>
+      <div class="tag"><span>ai</span> OpenAI · strict JSON schema · vector similarity</div>
       <div class="tag"><span>run</span> Docker · Kubernetes · GitHub Actions</div>
     </div>
   </div>
@@ -489,6 +489,7 @@
               <div class="tile"><div class="t">FastAPI API</div><div class="d">N replicas · non-root 10001</div></div>
               <div class="tile"><div class="t">Processing Worker</div><div class="d">queue consumer · retries</div></div>
               <div class="tile accent"><div class="t">AI Extraction</div><div class="d">OpenAI · strict schema</div></div>
+              <div class="tile accent"><div class="t">Invoice embeddings</div><div class="d">text-embedding-3-small · similar-invoice search</div></div>
               <div class="tile"><div class="t">Validation engine</div><div class="d">business rules</div></div>
               <div class="tile accent"><div class="t">Realtime events</div><div class="d">GET /events/stream · SSE, tenant-scoped</div></div>
             </div>
@@ -498,7 +499,7 @@
           <div class="plane">
             <div class="plane-label"><span class="num">L4</span><span class="name">Data &amp; State</span><span class="own">FDE: isolation + migrations</span></div>
             <div class="tiles">
-              <div class="tile"><div class="t">PostgreSQL 16</div><div class="d">Alembic · per-org scoped</div></div>
+              <div class="tile"><div class="t">PostgreSQL 16 + pgvector</div><div class="d">Alembic · per-org scoped · HNSW</div></div>
               <div class="tile"><div class="t">Redis 7</div><div class="d">queue · rate-limit · revocation · pub/sub events</div></div>
               <div class="tile"><div class="t">Object storage</div><div class="d">S3 / local · signed URLs</div></div>
             </div>
@@ -539,7 +540,7 @@
   <section id="data">
     <div class="wrap">
       <div class="sec-head"><span class="idx">02</span><h2>Data model — ER view</h2></div>
-      <p class="sec-sub">Twelve tables, PostgreSQL. Every tenant-owned row carries an <code>organization_id</code>
+      <p class="sec-sub">Thirteen tables, PostgreSQL. Every tenant-owned row carries an <code>organization_id</code>
         and inherits <code>created_at</code>/<code>updated_at</code>. <span class="er-legend">Cardinality: <b>1&nbsp;──&lt;&nbsp;N</b> (parent to child). Badges: <b>PK</b> primary key · <b>FK</b> foreign key · <b>K</b> indexed / constrained.</span></p>
 
       <div class="er">
@@ -640,6 +641,18 @@
         </div>
 
         <div class="entity">
+          <div class="e-head"><span class="e-name">invoice_embeddings</span><span class="e-role">pgvector · uq(invoice_id)</span></div>
+          <div class="cols">
+            <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b fk">FK</span><span class="cn">invoice_id <span class="ref">→ invoices</span></span><span class="ct">uuid</span></div>
+            <div class="col"><span class="b"></span><span class="cn">model_name</span><span class="ct">varchar</span></div>
+            <div class="col"><span class="b"></span><span class="cn">source_text</span><span class="ct">text</span></div>
+            <div class="col"><span class="b k">IX</span><span class="cn">embedding <span class="ref">HNSW cosine</span></span><span class="ct">vector(1536)</span></div>
+            <div class="col"><span class="b"></span><span class="cn">estimated_cost</span><span class="ct">numeric?</span></div>
+          </div>
+        </div>
+
+        <div class="entity">
           <div class="e-head"><span class="e-name">invoice_validation_results</span><span class="e-role">rule outcomes</span></div>
           <div class="cols">
             <div class="col"><span class="b pk">PK</span><span class="cn">id</span><span class="ct">uuid</span></div>
@@ -694,6 +707,7 @@
         <div class="er-note"><span>Uniqueness: <code>invoices(org, supplier, invoice_number)</code>, <code>suppliers(org, name)</code>, <code>prompt_versions(name, version)</code>.</span></div>
         <div class="er-note"><span><code>audit_logs</code> is append-only — ORM <code>before_update</code>/<code>before_delete</code> raise; no updates or deletes.</span></div>
         <div class="er-note"><span><code>prompt_versions</code> <b>1&nbsp;──&lt;&nbsp;N</b> extractions — model + prompt provenance stored per extraction.</span></div>
+        <div class="er-note"><span><code>invoice_embeddings</code> is <b>1&nbsp;──&nbsp;1</b> with invoices (re-extraction updates in place) — cosine distance over an HNSW index powers org-scoped <code>GET /invoices/{id}/similar</code>.</span></div>
       </div>
     </div>
   </section>
@@ -709,7 +723,7 @@
           <div class="step"><div class="bead"><b>1</b><span class="line"></span></div><div class="s-name">Sign in</div><div class="s-desc">httpOnly cookie · refresh rotation</div></div>
           <div class="step"><div class="bead"><b>2</b><span class="line"></span></div><div class="s-name">Upload</div><div class="s-desc">multipart · checksum · size/MIME</div></div>
           <div class="step"><div class="bead"><b>3</b><span class="line"></span></div><div class="s-name">Queue job</div><div class="s-desc">Redis · worker · retries</div></div>
-          <div class="step"><div class="bead"><b>4</b><span class="line"></span></div><div class="s-name">AI extract</div><div class="s-desc">OpenAI · strict JSON schema</div></div>
+          <div class="step"><div class="bead"><b>4</b><span class="line"></span></div><div class="s-name">AI extract</div><div class="s-desc">OpenAI · strict JSON · embed</div></div>
           <div class="step"><div class="bead"><b>5</b><span class="line"></span></div><div class="s-name">Validate</div><div class="s-desc">business rules · confidence</div></div>
           <div class="step"><div class="bead"><b>6</b><span class="line"></span></div><div class="s-name">Human review</div><div class="s-desc">edit · optimistic concurrency</div></div>
           <div class="step"><div class="bead"><b>7</b><span class="line"></span></div><div class="s-name">Approve / reject</div><div class="s-desc">RBAC-gated decision</div></div>
@@ -760,6 +774,7 @@
             <div class="row"><div class="arrow right" style="left:58.333%;width:16.667%"></div><span class="mlabel" style="left:66.666%">extract · strict JSON schema</span></div>
             <div class="row"><div class="arrow ret left" style="left:58.333%;width:16.667%"></div><span class="mlabel" style="left:66.666%">payload + tokens + cost</span></div>
             <div class="row"><div class="arrow right" style="left:58.333%;width:33.334%"></div><span class="mlabel" style="left:75%">write extraction · validation · status</span></div>
+            <div class="row"><div class="arrow right" style="left:58.333%;width:33.334%"></div><span class="mlabel" style="left:75%">embed → upsert vector (best-effort, post-commit)</span></div>
 
             <div class="phase"><span class="p-name">3 · Review — synchronous</span><span class="p-line"></span></div>
             <div class="row"><div class="arrow right" style="left:8.333%;width:16.667%"></div><span class="mlabel" style="left:16.666%">GET <span class="code">/invoices</span> · review queue</span></div>
@@ -771,7 +786,7 @@
           <div class="seq-legend">
             <span><b>rate-limited:</b> login + upload (Redis sliding window)</span>
             <span><b>on failure:</b> job retries w/ backoff → marked failed → reprocessable</span>
-            <span><b>no API key:</b> deterministic dev extractor</span>
+            <span><b>no API key:</b> deterministic dev extractor + dev embedder</span>
           </div>
         </div>
       </div>
