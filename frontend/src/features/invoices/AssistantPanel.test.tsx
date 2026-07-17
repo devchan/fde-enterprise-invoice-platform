@@ -38,6 +38,44 @@ describe("AssistantPanel", () => {
     expect(screen.getByText("assistant-fallback")).toBeInTheDocument();
   });
 
+  it("keeps the question and its answer together in the thread", () => {
+    const onAsk = vi.fn();
+    const { rerender } = render(
+      <AssistantPanel isAsking={false} latest={null} onAsk={onAsk} selectedInvoice={null} />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Ask the assistant about your invoices"), {
+      target: { value: "what failed today?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask assistant" }));
+
+    // The user turn is echoed into the thread immediately, before the answer.
+    expect(screen.getByText("what failed today?")).toBeInTheDocument();
+
+    // When the server answer arrives it is folded in as the assistant turn.
+    rerender(<AssistantPanel isAsking={false} latest={answer} onAsk={onAsk} selectedInvoice={null} />);
+    expect(screen.getByText(/1 failed processing job/)).toBeInTheDocument();
+    expect(screen.getByText("what failed today?")).toBeInTheDocument();
+  });
+
+  it("offers starter prompts on the empty thread and asks the tapped one", () => {
+    const onAsk = vi.fn();
+    render(<AssistantPanel isAsking={false} latest={null} onAsk={onAsk} selectedInvoice={null} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "What failed today?" }));
+    expect(onAsk).toHaveBeenCalledWith("What failed today?");
+  });
+
+  it("clears the conversation back to the empty state", () => {
+    render(<AssistantPanel isAsking={false} latest={answer} onAsk={vi.fn()} selectedInvoice={null} />);
+
+    expect(screen.getByText(/1 failed processing job/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear conversation" }));
+
+    expect(screen.queryByText(/1 failed processing job/)).not.toBeInTheDocument();
+    expect(screen.getByText("Ask about your invoices")).toBeInTheDocument();
+  });
+
   it("asks the stuck question for the selected invoice via the quick action", () => {
     const onAsk = vi.fn();
     render(

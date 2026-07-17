@@ -133,7 +133,7 @@ Implemented pure-Python services:
 - shared AI tool layer with tenant scoping and role enforcement (search, detail, similar, audit trail, accuracy, failed jobs, reprocess)
 - stdio MCP server exposing the tool layer to Model Context Protocol clients as a configured service user
 - read-only AP assistant agent (OpenAI tool-calling loop with capped iterations, deterministic keyless fallback, tool-call trace in responses)
-- cockpit Assistant panel on the review screen (question input, tool-trace chips, one-click "why is this invoice stuck?" quick question)
+- cockpit Assistant panel on the review screen: conversational chat thread (question/answer turns kept together), per-answer tool-trace chips and model name, starter prompts on the empty thread, a clear-conversation control, and a one-click "why is this invoice stuck?" quick question
 
 ### Tests
 

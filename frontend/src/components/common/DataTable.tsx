@@ -46,6 +46,7 @@ export function DataTable<TData>({
   enableExport,
   enableRowSelection,
   error,
+  fitContainer,
   getRowId,
   pageSize = 10,
 }: {
@@ -57,6 +58,12 @@ export function DataTable<TData>({
   enableExport?: { filename: string };
   enableRowSelection?: boolean;
   error?: string;
+  // Master lists in a narrow column (e.g. the review invoice rail) set this so
+  // the table sizes to its container instead of forcing its resized column
+  // total as a min-width — which in a narrow panel means a horizontal scrollbar
+  // and clipped content. Wide data tables leave it off to scroll inside the
+  // panel rather than squash their columns.
+  fitContainer?: boolean;
   getRowId?: (row: TData) => string;
   pageSize?: number;
 }) {
@@ -186,16 +193,18 @@ export function DataTable<TData>({
         </div>
       ) : null}
       <div className="max-h-[32rem] overflow-auto rounded-md border bg-card">
-        {/* Stretch to the container when columns fit; keep the resized total as
-            a minimum so wide tables scroll inside this panel, never the page. */}
-        <Table style={{ minWidth: table.getTotalSize(), width: "100%" }}>
+        {/* fitContainer: size to the panel (no min-width, no fixed column
+            widths) so a narrow master list never overflows. Otherwise keep the
+            resized total as a minimum so wide tables scroll inside this panel,
+            never the page. */}
+        <Table style={fitContainer ? { width: "100%" } : { minWidth: table.getTotalSize(), width: "100%" }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const sorted = header.column.getIsSorted();
                   return (
-                    <TableHead className="relative" key={header.id} style={{ width: header.getSize() }}>
+                    <TableHead className="relative" key={header.id} style={fitContainer ? undefined : { width: header.getSize() }}>
                       {header.isPlaceholder ? null : header.column.id === "select" ? (
                         (flexRender(header.column.columnDef.header, header.getContext()) as ReactNode)
                       ) : (
@@ -215,7 +224,7 @@ export function DataTable<TData>({
                           ) : null}
                         </button>
                       )}
-                      {header.column.getCanResize() ? (
+                      {!fitContainer && header.column.getCanResize() ? (
                         <div
                           className="absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none hover:bg-primary/40"
                           onDoubleClick={() => header.column.resetSize()}
@@ -240,7 +249,7 @@ export function DataTable<TData>({
               rows.map((row) => (
                 <TableRow data-state={row.getIsSelected() ? "selected" : undefined} key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
+                    <TableCell key={cell.id} style={fitContainer ? undefined : { width: cell.column.getSize() }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

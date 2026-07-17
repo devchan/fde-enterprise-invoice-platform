@@ -189,6 +189,8 @@ export function ReviewPanel({
               enableColumnVisibility
               enableExport={{ filename: "invoices.csv" }}
               enableRowSelection
+              // Narrow left-rail list: size to the column, don't force a scrollbar.
+              fitContainer
               getRowId={(invoice) => invoice.invoice_id}
             />
             {selectedInvoice ? (
