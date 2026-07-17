@@ -1272,14 +1272,19 @@
   <section id="remaining">
     <div class="wrap">
       <div class="sec-head"><span class="idx">10</span><h2>Remaining path to 10</h2></div>
-      <p class="sec-sub">Every launch <em>blocker</em> is closed. What's left is deployment-to-real-infra and
-        defense-in-depth polish — capability is in place.</p>
+      <p class="sec-sub">Every launch <em>blocker</em> is closed and the checklist is verified against the
+        actual test suite. What's left splits into two kinds: proving the system on real infrastructure
+        with live providers (the true gate), and defense-in-depth polish that can land any week.</p>
       <div class="remain">
-        <div class="ritem"><span class="rn">R1</span><span class="rt"><b>Apply to a live hosted cluster.</b> Manifests validated (kustomize + kubectl render); never applied to real infra — locally blocked only by node-image bandwidth.</span><span class="chip ops">ops</span></div>
-        <div class="ritem"><span class="rn">R2</span><span class="rt"><b>Hosted observability backend.</b> Deploy Prometheus / Grafana / OTel collector to collect the signals the app already emits.</span><span class="chip ops">ops</span></div>
-        <div class="ritem"><span class="rn">R3</span><span class="rt"><b>CSRF tokens</b> as defense-in-depth (today mitigated by SameSite=Lax cookies).</span><span class="chip opt">hardening</span></div>
-        <div class="ritem"><span class="rn">R4</span><span class="rt"><b>Broader e2e + accessibility coverage</b> beyond happy-path Playwright and current ARIA roles.</span><span class="chip opt">hardening</span></div>
-        <div class="ritem"><span class="rn">R5</span><span class="rt"><b>Tune AI thresholds on production data.</b> Auto-approval confidence bar, anomaly z-score, and near-duplicate similarity are conservative defaults; validate per-field confidences and categories against live-provider extractions before raising touchless rate.</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R1</span><span class="rt"><b>Apply to a live hosted cluster — staging first.</b> Manifests validated (kustomize + kubectl render); never applied to real infra. Standing up staging also closes the last deployment checklist row.</span><span class="chip ops">ops</span></div>
+        <div class="ritem"><span class="rn">R2</span><span class="rt"><b>Hosted observability backend.</b> Deploy Prometheus / Grafana / OTel collector to collect the signals the app already emits — this is also what unlocks measuring SLO attainment against production telemetry.</span><span class="chip ops">ops</span></div>
+        <div class="ritem"><span class="rn">R3</span><span class="rt"><b>S3 smoke test against the selected provider.</b> The storage adapter is unit-tested; it has never been exercised against the real bucket.</span><span class="chip ops">ops</span></div>
+        <div class="ritem"><span class="rn">R4</span><span class="rt"><b>Live-provider AI verification.</b> Run extraction against live OpenAI/Gemini with representative invoice fixtures; verify token-usage and cost persistence from real responses, validate per-field confidences and line-item categories, and exercise the assistant's live LLM tool-calling path (local verification used the deterministic fallback).</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R5</span><span class="rt"><b>Tune AI thresholds on production data.</b> Auto-approval confidence bar, anomaly z-score, and near-duplicate similarity are conservative defaults; tune on live invoices before raising the touchless rate.</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R6</span><span class="rt"><b>CSRF tokens</b> as defense-in-depth (today mitigated by SameSite=Lax cookies).</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R7</span><span class="rt"><b>Close the audit &amp; test tail.</b> Audit per-rule validation results (only anomaly flags emit events today), add the missing checksum-duplicate upload integration test, and verify no sensitive data reaches logs.</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R8</span><span class="rt"><b>Broader e2e + accessibility coverage, line-item correction UX.</b> Deterministic approve/reject and reprocess browser fixtures beyond the happy path; header fields are correctable but line items are not yet.</span><span class="chip opt">hardening</span></div>
+        <div class="ritem"><span class="rn">R9</span><span class="rt"><b>Agent-layer production polish.</b> MCP over streamable HTTP with per-client auth (only if remote MCP clients are required) and per-organization assistant token/cost accounting if usage grows.</span><span class="chip opt">hardening</span></div>
       </div>
     </div>
   </section>

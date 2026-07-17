@@ -6,12 +6,12 @@ An item is checked only when it is implemented, tested, and usable in the runnin
 
 - [x] API has typed request and response schemas
 - [x] API uses consistent error format
-- [ ] Database migrations are repeatable and verified
-- [ ] Critical state transitions are backend-enforced from persisted invoice state and covered by integration tests
-- [ ] Uploads have file size limits
-- [ ] Uploads validate MIME type and extension
-- [ ] Duplicate uploads are detected by checksum
-- [ ] Duplicate invoice numbers are detected per supplier and organization and covered by integration tests
+- [x] Database migrations are repeatable and verified (alembic upgrade runs on every containerized boot/test run; `scripts/run-migrations.sh` covers deploy-time)
+- [x] Critical state transitions are backend-enforced from persisted invoice state and covered by integration tests (`invoice_workflow.py` transition map; `test_invoice_workflow.py`, review-API transition tests)
+- [x] Uploads have file size limits (`test_file_validation.py::test_oversized_file_is_rejected`)
+- [x] Uploads validate MIME type and extension (`test_file_validation.py`)
+- [ ] Duplicate uploads are detected by checksum (implemented in intake — `DuplicateInvoiceUploadError`; an integration test is still missing)
+- [x] Duplicate invoice numbers are detected per supplier and organization and covered by integration tests (`test_invoice_validation.py`, `test_invoice_review_api.py::test_review_duplicate_invoice_number_returns_conflict`)
 - [x] Long-running work runs in background jobs with verified worker execution
 - [x] Jobs have automatic retry policy
 - [x] Failed jobs can be inspected
@@ -68,7 +68,7 @@ Frontend scope note: the previous static cockpit has been retired. The React/Vit
 - [x] Password hashes are stored instead of plaintext passwords
 - [x] First admin bootstrap path exists
 - [x] Last admin demotion is blocked
-- [ ] Secrets are not committed
+- [x] Secrets are not committed (verified: only `.env*.example` files are tracked; pattern scan of the working tree and full git history found no key-shaped strings)
 - [x] Files are private by default
 - [x] File access uses signed URLs
 - [x] S3-compatible object storage adapter exists and is unit-tested
@@ -81,16 +81,16 @@ Frontend scope note: the previous static cockpit has been retired. The React/Vit
 - [x] Tokens can be revoked (logout revokes via a Redis blocklist)
 - [x] Refresh tokens rotate on use and replayed refresh tokens are rejected
 - [x] Threat model (STRIDE) is documented with trust boundaries, mitigations, and residual risks
-- [ ] Admin actions are audited
+- [x] Admin actions are audited (user administration, job reprocess, and invoice status transitions all write audit events)
 - [x] User-admin actions are audited
 
 Security scope note: the checked items apply to the current implemented API surface. Future supplier, audit, and admin endpoints must add equivalent authentication, RBAC, and tenant checks before they are considered ready.
 
 ## Audit and Compliance
 
-- [ ] Invoice upload is audited and verified in persistence tests
-- [ ] Extraction completion is audited
-- [ ] Validation result is audited
+- [x] Invoice upload is audited and verified in persistence tests (`invoice.uploaded` event; `test_audit_log.py` covers event metadata and append-only persistence)
+- [x] Extraction completion is audited (`invoice.extraction_completed` written from the worker pipeline)
+- [ ] Validation result is audited (only anomaly flags emit audit events today; per-rule validation outcomes do not)
 - [x] Field corrections are audited
 - [x] Approval and rejection are audited and verified in persistence tests
 - [x] Audit records include actor, timestamp, entity, action, and metadata
