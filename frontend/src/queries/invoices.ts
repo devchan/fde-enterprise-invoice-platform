@@ -21,6 +21,14 @@ export function useInvoiceQuery(session: Session | null, invoiceId: string | und
   });
 }
 
+export function useSimilarInvoicesQuery(session: Session | null, invoiceId: string | undefined) {
+  return useQuery({
+    queryKey: invoiceKeys.similar(session?.organization_id ?? "", invoiceId ?? ""),
+    queryFn: () => invoiceService.similar(session as Session, invoiceId as string),
+    enabled: Boolean(session && invoiceId),
+  });
+}
+
 export function useExtractionProvidersQuery(session: Session | null) {
   return useQuery({
     queryKey: invoiceKeys.providers(session?.organization_id ?? ""),

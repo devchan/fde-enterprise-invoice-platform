@@ -180,6 +180,8 @@ Real-time updates: the frontend subscribes to `GET /api/v1/events/stream` (Serve
 
 Safety and accessibility: confirmation dialogs gate reject-invoice (single and bulk) and password-reset actions; form fields wire `aria-invalid`/`aria-describedby` for validation errors; icon-only buttons carry `aria-label`; a skip-to-content link and a `Cmd/Ctrl+K` command palette (RBAC-aware tab navigation plus quick actions) support keyboard-first use; a breadcrumb appears on the invoice review drill-down.
 
+The invoice review drill-down includes a similar-invoices panel backed by the pgvector similarity endpoint: nearest same-organization invoices ranked by match percentage, a "possible duplicate" flag at ≥95% similarity, and click-through navigation to the matched invoice.
+
 Browser smoke automation and authenticated Playwright workflow coverage exist. Line-item editing and richer dashboard analytics remain pending.
 
 ### Deployment

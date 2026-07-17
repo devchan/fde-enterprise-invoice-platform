@@ -7,6 +7,7 @@ export const sessionKeys = {
 export const invoiceKeys = {
   list: (orgId: string) => ["invoices", orgId, "list"] as const,
   detail: (orgId: string, invoiceId: string) => ["invoices", orgId, "detail", invoiceId] as const,
+  similar: (orgId: string, invoiceId: string) => ["invoices", orgId, "similar", invoiceId] as const,
   providers: (orgId: string) => ["invoices", orgId, "providers"] as const,
 };
 

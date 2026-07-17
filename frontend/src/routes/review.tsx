@@ -9,6 +9,7 @@ import {
   useInvoicesQuery,
   useOpenInvoiceFileMutation,
   useReviewInvoiceMutation,
+  useSimilarInvoicesQuery,
 } from "../queries/invoices";
 import { ReviewPanel } from "../features/invoices/ReviewPanel";
 import { Route as RootRoute } from "./__root";
@@ -31,6 +32,7 @@ function ReviewRoute() {
 
   const invoicesQuery = useInvoicesQuery(session);
   const selectedInvoiceQuery = useInvoiceQuery(session, invoiceId);
+  const similarInvoicesQuery = useSimilarInvoicesQuery(session, invoiceId);
   const reviewMutation = useReviewInvoiceMutation(session);
   const bulkReviewMutation = useBulkReviewInvoicesMutation(session);
   const openFileMutation = useOpenInvoiceFileMutation(session);
@@ -67,6 +69,8 @@ function ReviewRoute() {
       onSelect={(id) => void navigate({ to: "/review", search: { invoiceId: id } })}
       openingFileId={openFileMutation.isPending ? openFileMutation.variables?.file.file_id ?? null : null}
       selectedInvoice={selectedInvoice}
+      similarInvoices={similarInvoicesQuery.data ?? []}
+      similarInvoicesLoading={similarInvoicesQuery.isLoading}
     />
   );
 }

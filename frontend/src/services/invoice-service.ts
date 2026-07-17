@@ -1,4 +1,4 @@
-import type { ExtractionProvidersResponse, InvoiceDetail, InvoiceFile, Session } from "../domain/types";
+import type { ExtractionProvidersResponse, InvoiceDetail, InvoiceFile, Session, SimilarInvoicesResponse } from "../domain/types";
 import type { ApiClient } from "./api-client";
 
 export class InvoiceService {
@@ -13,6 +13,13 @@ export class InvoiceService {
 
   get(session: Session, invoiceId: string): Promise<InvoiceDetail> {
     return this.apiClient.request<InvoiceDetail>(`/api/v1/invoices/${invoiceId}`, {}, session);
+  }
+
+  // Nearest invoices by embedding cosine similarity (pgvector, same org). Empty
+  // until the worker has embedded the invoice post-extraction.
+  async similar(session: Session, invoiceId: string): Promise<SimilarInvoicesResponse["similar_invoices"]> {
+    const data = await this.apiClient.request<SimilarInvoicesResponse>(`/api/v1/invoices/${invoiceId}/similar`, {}, session);
+    return data.similar_invoices;
   }
 
   // Lists extraction providers and whether each is usable, so the upload form

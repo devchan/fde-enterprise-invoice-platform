@@ -78,6 +78,22 @@ export type InvoiceDetail = {
   }>;
 };
 
+export type SimilarInvoice = {
+  invoice_id: string;
+  invoice_number: string;
+  supplier_id: string | null;
+  status: string;
+  total_amount: string | null;
+  currency: string;
+  // Cosine similarity of the invoices' embeddings: 1.0 = same content direction.
+  similarity: number;
+};
+
+export type SimilarInvoicesResponse = {
+  invoice_id: string;
+  similar_invoices: SimilarInvoice[];
+};
+
 export type ProcessingJob = {
   processing_job_id: string;
   invoice_id: string;

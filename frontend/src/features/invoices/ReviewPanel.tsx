@@ -11,7 +11,7 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import type { InvoiceDetail, InvoiceFile } from "../../domain/types";
+import type { InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
 import { formatDate } from "../../utils/format";
 
 export function ReviewPanel({
@@ -26,6 +26,8 @@ export function ReviewPanel({
   onSelect,
   openingFileId,
   selectedInvoice,
+  similarInvoices,
+  similarInvoicesLoading,
 }: {
   invoices: InvoiceDetail[];
   isApproving: boolean;
@@ -38,6 +40,8 @@ export function ReviewPanel({
   onSelect: (invoiceId: string) => void;
   openingFileId: string | null;
   selectedInvoice: InvoiceDetail | null;
+  similarInvoices: SimilarInvoice[];
+  similarInvoicesLoading: boolean;
 }) {
   const reviewFormRef = useRef<HTMLFormElement>(null);
   const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
@@ -160,7 +164,14 @@ export function ReviewPanel({
               </div>
             </form>
 
-            <DetailSections invoice={selectedInvoice} openingFileId={openingFileId} onOpenFile={onOpenFile} />
+            <DetailSections
+              invoice={selectedInvoice}
+              onOpenFile={onOpenFile}
+              onSelect={onSelect}
+              openingFileId={openingFileId}
+              similarInvoices={similarInvoices}
+              similarInvoicesLoading={similarInvoicesLoading}
+            />
           </CardContent>
         </Card>
       )}
@@ -192,14 +203,24 @@ export function ReviewPanel({
   );
 }
 
+// Similarity at or above this reads as "probably the same invoice submitted
+// twice" — worth flagging to the reviewer, not just ranking.
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.95;
+
 function DetailSections({
   invoice,
-  openingFileId,
   onOpenFile,
+  onSelect,
+  openingFileId,
+  similarInvoices,
+  similarInvoicesLoading,
 }: {
   invoice: InvoiceDetail;
-  openingFileId: string | null;
   onOpenFile: (file: InvoiceFile) => void;
+  onSelect: (invoiceId: string) => void;
+  openingFileId: string | null;
+  similarInvoices: SimilarInvoice[];
+  similarInvoicesLoading: boolean;
 }) {
   return (
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -230,6 +251,28 @@ function DetailSections({
             <span>{item.description}</span>
             <span>{item.line_total || "-"}</span>
           </div>
+        ))}
+      </DataBlock>
+      {/* Nearest invoices by embedding similarity (pgvector) — context for the
+          reviewer plus a near-duplicate flag beyond the exact checksum guard. */}
+      <DataBlock title="Similar invoices">
+        {similarInvoicesLoading ? <p className="text-sm text-muted-foreground">Searching…</p> : null}
+        {!similarInvoicesLoading && similarInvoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No similar invoices yet — available once extraction completes.</p>
+        ) : null}
+        {similarInvoices.map((similar) => (
+          <button className="list-row" key={similar.invoice_id} onClick={() => onSelect(similar.invoice_id)} type="button">
+            <span className="flex items-center gap-2">
+              <span className="font-medium text-primary">{similar.invoice_number}</span>
+              <span className="text-muted-foreground">
+                {similar.currency} {similar.total_amount || "0.00"}
+              </span>
+              {similar.similarity >= DUPLICATE_SIMILARITY_THRESHOLD ? (
+                <StatusPill label="possible duplicate" tone="error" />
+              ) : null}
+            </span>
+            <span className="text-muted-foreground">{Math.round(similar.similarity * 100)}% match</span>
+          </button>
         ))}
       </DataBlock>
       {/* Raw model output shown verbatim so reviewers can audit what the extractor produced. */}
