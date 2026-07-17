@@ -13,9 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import type { AssistantAskResponse, FieldConfidences, InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
+import type { FieldConfidences, InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
 import { formatDate } from "../../utils/format";
-import { AssistantPanel } from "./AssistantPanel";
 
 // Below this per-field extraction confidence the review form highlights the
 // field so the reviewer verifies it against the document (matches the server's
@@ -46,14 +45,11 @@ function confidenceWarning(confidences: FieldConfidences, field: keyof FieldConf
 export function ReviewPanel({
   aiFilters,
   aiSearchActive,
-  assistantAnswer,
   invoices,
   isAiSearching,
   isApproving,
-  isAsking,
   isRejecting,
   onAiSearch,
-  onAsk,
   onBulkReview,
   onClearAiSearch,
   onClearSelection,
@@ -68,14 +64,11 @@ export function ReviewPanel({
 }: {
   aiFilters: Record<string, unknown> | null;
   aiSearchActive: boolean;
-  assistantAnswer: AssistantAskResponse | null;
   invoices: InvoiceDetail[];
   isAiSearching: boolean;
   isApproving: boolean;
-  isAsking: boolean;
   isRejecting: boolean;
   onAiSearch: (query: string) => void;
-  onAsk: (question: string) => void;
   onBulkReview: (decision: "approve" | "reject", invoices: InvoiceDetail[]) => void;
   onClearAiSearch: () => void;
   onClearSelection: () => void;
@@ -122,9 +115,8 @@ export function ReviewPanel({
 
   return (
     <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-      {/* Left rail: the invoice list plus the assistant ask-box, stacked so the
-          assistant stays reachable while browsing or reviewing. */}
-      <div className="space-y-4">
+      {/* Left rail: the invoice list. The assistant now lives in a global
+          floating widget (bottom-right launcher) reachable from every screen. */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -199,14 +191,6 @@ export function ReviewPanel({
           </div>
         </CardContent>
       </Card>
-
-      <AssistantPanel
-        isAsking={isAsking}
-        latest={assistantAnswer}
-        onAsk={onAsk}
-        selectedInvoice={selectedInvoice}
-      />
-      </div>
 
       {!selectedInvoice ? (
         <EmptyPanel

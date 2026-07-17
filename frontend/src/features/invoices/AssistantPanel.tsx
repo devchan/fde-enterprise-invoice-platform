@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { HelpCircle, Loader2, MessageSquareText, Sparkles, Trash2 } from "lucide-react";
+import { HelpCircle, Loader2, MessageSquareText, Sparkles, Trash2, X } from "lucide-react";
+import type { AssistantInvoiceContext } from "../../app/AssistantContext";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import type { AssistantAskResponse, AssistantToolCall, InvoiceDetail } from "../../domain/types";
+import type { AssistantAskResponse, AssistantToolCall } from "../../domain/types";
 
 // One turn in the conversation. User turns carry only their text; assistant
 // turns carry the grounded answer plus the tool trace and model that produced
@@ -27,15 +28,21 @@ const SUGGESTED_PROMPTS = [
 // Questions submit on Enter/click (never per-keystroke) because the server may
 // run an LLM tool-calling loop that takes several seconds.
 export function AssistantPanel({
+  className,
   isAsking,
   latest,
   onAsk,
+  onClose,
   selectedInvoice,
 }: {
+  className?: string;
   isAsking: boolean;
   latest: AssistantAskResponse | null;
   onAsk: (question: string) => void;
-  selectedInvoice: InvoiceDetail | null;
+  // When set, the header shows a close control — the panel is a dismissible
+  // floating window rather than an always-present card.
+  onClose?: () => void;
+  selectedInvoice: AssistantInvoiceContext | null;
 }) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -77,7 +84,7 @@ export function AssistantPanel({
   const stuckQuestion = selectedInvoice ? `why is invoice ${selectedInvoice.invoice_id} stuck?` : null;
 
   return (
-    <Card>
+    <Card className={className}>
       <CardContent className="pt-6">
         <div className="flex items-center gap-2">
           <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -97,6 +104,19 @@ export function AssistantPanel({
               variant="ghost"
             >
               <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+          {onClose ? (
+            <Button
+              aria-label="Close assistant"
+              className="h-7 w-7"
+              onClick={onClose}
+              size="icon"
+              title="Close assistant"
+              type="button"
+              variant="ghost"
+            >
+              <X className="h-3.5 w-3.5" />
             </Button>
           ) : null}
         </div>

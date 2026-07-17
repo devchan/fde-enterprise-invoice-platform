@@ -133,7 +133,7 @@ Implemented pure-Python services:
 - shared AI tool layer with tenant scoping and role enforcement (search, detail, similar, audit trail, accuracy, failed jobs, reprocess)
 - stdio MCP server exposing the tool layer to Model Context Protocol clients as a configured service user
 - read-only AP assistant agent (OpenAI tool-calling loop with capped iterations, deterministic keyless fallback, tool-call trace in responses)
-- cockpit Assistant panel on the review screen: conversational chat thread (question/answer turns kept together), per-answer tool-trace chips and model name, starter prompts on the empty thread, a clear-conversation control, and a one-click "why is this invoice stuck?" quick question
+- global cockpit Assistant: a floating chat launcher pinned to every screen (also openable from the ⌘K command palette) that opens a conversational thread — question/answer turns kept together, per-answer tool-trace chips and model name, starter prompts on the empty thread, and a clear-conversation control. The conversation persists across route changes; on the review screen it also offers a one-click "why is this invoice stuck?" quick question for the open invoice
 
 ### Tests
 

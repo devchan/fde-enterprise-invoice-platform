@@ -1,7 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Lock, LogOut, RefreshCw, SunMoon } from "lucide-react";
+import { Lock, LogOut, MessageSquareText, RefreshCw, SunMoon } from "lucide-react";
+import { useAssistant } from "../../app/AssistantContext";
 import { tabs } from "../../app/navigation";
 import { useSession } from "../../app/useSession";
 import { canAccessTab } from "../../domain/authorization";
@@ -24,6 +25,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const navigate = useNavigate();
   const { session } = useSession();
   const { theme, setTheme } = useTheme();
+  const { setOpen: setAssistantOpen } = useAssistant();
   const logoutMutation = useLogoutMutation();
   const queryClient = useQueryClient();
 
@@ -67,6 +69,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Actions">
+          {session ? (
+            <CommandItem onSelect={() => runCommand(() => setAssistantOpen(true))}>
+              <MessageSquareText className="h-4 w-4" />
+              Ask the assistant
+            </CommandItem>
+          ) : null}
           <CommandItem onSelect={() => runCommand(() => void queryClient.invalidateQueries())}>
             <RefreshCw className="h-4 w-4" />
             Refresh all data

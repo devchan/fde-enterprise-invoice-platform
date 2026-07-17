@@ -322,7 +322,7 @@ Deliverables:
 - `POST /api/v1/assistant/ask`: OpenAI Responses tool-calling loop (capped by `ASSISTANT_MAX_TOOL_CALLS`) running as the authenticated caller, returning the answer plus the ordered tool trace
 - deterministic keyless fallback answerer so the endpoint works in development and degrades gracefully on provider failure
 - the assistant is read-only by design — reprocess/approve stay behind explicit human actions in the cockpit
-- cockpit Assistant panel on the review screen: a conversational chat thread (question and answer turns rendered together as user/assistant bubbles, answers keep their line breaks), per-answer tool-trace chips and model name, starter prompts on the empty thread, a clear-conversation control, and a one-click "Why is this invoice stuck?" quick question on the invoice drill-down
+- global cockpit Assistant: a floating chat launcher pinned to every screen (also openable from the ⌘K command palette) opening a conversational thread — question and answer turns rendered together as user/assistant bubbles (answers keep their line breaks), per-answer tool-trace chips and model name, starter prompts on the empty thread, and a clear-conversation control. The conversation persists across route changes; on the review screen the drill-down additionally feeds a one-click "Why is this invoice stuck?" quick question for the open invoice
 
 Exit criteria:
 

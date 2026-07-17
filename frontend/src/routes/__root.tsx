@@ -1,6 +1,7 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { KeyRound, Lock, Loader2, LogOut, Search } from "lucide-react";
 import { useState } from "react";
+import { AssistantProvider } from "../app/AssistantContext";
 import { tabs } from "../app/navigation";
 import { useHealth } from "../app/useHealth";
 import { useSession } from "../app/useSession";
@@ -17,6 +18,7 @@ import { Toast } from "../components/common/Toast";
 import { useToast } from "../app/ToastContext";
 import { canAccessTab } from "../domain/authorization";
 import { SignInForm } from "../features/auth/SignInForm";
+import { AssistantWidget } from "../features/invoices/AssistantWidget";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -85,6 +87,7 @@ function RootComponent() {
   }
 
   return (
+    <AssistantProvider>
     <main className="min-h-screen">
       <CommandPalette onOpenChange={setCommandPaletteOpen} open={commandPaletteOpen} />
       <a
@@ -206,6 +209,11 @@ function RootComponent() {
           <Outlet />
         </div>
       </section>
+
+      {/* Global assistant: reachable from every screen via the corner launcher,
+          not buried in one panel. */}
+      {session ? <AssistantWidget session={session} /> : null}
     </main>
+    </AssistantProvider>
   );
 }
