@@ -267,7 +267,8 @@ button:disabled {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
   border: 1px solid hsl(var(--border));
   border-radius: 7px;
   background: hsl(var(--card));
@@ -275,6 +276,13 @@ button:disabled {
   color: hsl(var(--foreground));
   font-size: 0.8125rem;
   transition: border-color 150ms ease;
+}
+
+/* Long unbroken tokens (mono rule codes, ids) must wrap inside the row's
+   border instead of painting past it when the pane is narrow. */
+.list-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 button.list-row:hover {

@@ -19,7 +19,7 @@ An item is checked only when it is implemented, tested, and usable in the runnin
 
 ## Frontend
 
-- [x] Review queue UI exists in the React frontend
+- [x] Review queue UI exists in the React frontend (responsive master-detail: full-width queue, xl rail+detail, drill-in below xl)
 - [x] Invoice correction UI exists in the React frontend
 - [x] Approve/reject UI exists in the React frontend
 - [x] Signed file URL access exists in the React frontend

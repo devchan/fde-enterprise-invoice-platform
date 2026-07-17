@@ -43,7 +43,8 @@ The current cockpit workflows are:
 - validation explanations and suggested fixes under failed rules, with anomaly badges for `amount_anomaly`/`near_duplicate_similarity`
 - AI-assigned expense category badges on line items
 - "Auto-approved by AI" badge for invoices approved without a human review
-- Assistant panel on the review screen through `POST /api/v1/assistant/ask`: question input, answer with preserved line breaks, tool-trace chips, model name, and a one-click "Why is this invoice stuck?" quick question on the selected invoice
+- global Assistant chat through `POST /api/v1/assistant/ask`: a floating launcher on every screen (also in the ⌘K palette) opening a conversational thread — user/assistant bubbles with preserved line breaks, per-answer tool-trace chips and model name, starter prompts, clear-conversation — persisting across route changes, with a one-click "Why is this invoice stuck?" quick question when an invoice is open
+- responsive master-detail review screen: full-width queue while browsing (amount, status, created, row-count chip); on `xl` an opened invoice collapses the queue to a compact rail beside the detail; below `xl` the detail replaces the list with breadcrumb-back (drill-in), and detail blocks use container-driven auto-fit columns
 - dashboard drill-down beyond the current cockpit panels remains pending
 
 ## Source layout

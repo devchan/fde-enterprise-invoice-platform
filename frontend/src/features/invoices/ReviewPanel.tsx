@@ -135,12 +135,13 @@ export function ReviewPanel({
   ];
 
   return (
-    // Master-detail: the list is full-width while browsing, and collapses to a
-    // compact rail beside the detail pane only once an invoice is opened — so
-    // the table isn't squeezed into a narrow column when there's nothing to
-    // show alongside it. (The assistant now lives in a global floating widget.)
+    // Master-detail: the list is full-width while browsing; once an invoice is
+    // opened it becomes a compact rail beside the detail pane on xl screens,
+    // and below xl the detail replaces the list entirely (drill-in) — the
+    // "Review Queue" breadcrumb navigates back. Without that, the detail pane
+    // would stack below the fold and selecting an invoice looks like a no-op.
     <section className={`grid gap-4 ${selectedInvoice ? "xl:grid-cols-[minmax(360px,460px)_1fr]" : "grid-cols-1"}`}>
-      <Card>
+      <Card className={selectedInvoice ? "hidden min-w-0 xl:block" : "min-w-0"}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-baseline gap-2">
@@ -222,7 +223,7 @@ export function ReviewPanel({
       </Card>
 
       {selectedInvoice ? (
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <nav aria-label="Breadcrumb" className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
               <button className="hover:text-foreground hover:underline" onClick={onClearSelection} type="button">
@@ -371,7 +372,11 @@ function DetailSections({
   similarInvoicesLoading: boolean;
 }) {
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+    // auto-fit against the PANE's width (not a viewport breakpoint): two
+    // columns only when each can get ~20rem, else one. The detail pane's width
+    // varies independently of the viewport (side-by-side rail vs drill-in), so
+    // viewport breakpoints like lg: pick the wrong layout here.
+    <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
       <DataBlock title="Validation">
         {invoice.validation_results.length === 0 ? <p className="text-sm text-muted-foreground">No validation results.</p> : null}
         {invoice.validation_results.map((result) => (
