@@ -26,6 +26,8 @@ from app.schemas.invoice import (
     InvoiceFileResponse,
     InvoiceLineItemResponse,
     InvoiceListResponse,
+    InvoiceNLSearchRequest,
+    InvoiceNLSearchResponse,
     InvoiceReviewRequest,
     InvoiceReviewResponse,
     InvoiceStatusTransitionRequest,
@@ -55,6 +57,11 @@ from app.services.invoice_intake import (
     create_invoice_metadata,
     create_invoice_upload,
 )
+from app.services.invoice_nl_search import (
+    NLSearchError,
+    parse_search_query,
+    search_invoices,
+)
 from app.services.invoice_review import (
     InvoiceReviewConflictError,
     InvoiceReviewError,
@@ -66,6 +73,34 @@ from app.services.invoice_review import (
 from app.services.invoice_workflow import InvoiceStatus
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+
+# Natural-language search: the model (or the dev fallback parser) translates
+# the query into structured filters; the actual data access is the same
+# tenant-scoped SQL as the list endpoint, so the LLM never touches data.
+@router.post("/nl-search", response_model=InvoiceNLSearchResponse)
+def natural_language_search(
+    payload: InvoiceNLSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    request_id: str | None = Header(default=None, alias="X-Request-ID"),
+) -> InvoiceNLSearchResponse:
+    try:
+        filters = parse_search_query(payload.query)
+    except NLSearchError as exc:
+        raise api_error(
+            http_status=status.HTTP_400_BAD_REQUEST,
+            code="invoice_search_query_invalid",
+            message=str(exc),
+            request_id=request_id,
+        ) from exc
+
+    invoices = search_invoices(db, organization_id=current_user.organization_id, filters=filters)
+    return InvoiceNLSearchResponse(
+        query=payload.query,
+        filters=filters.model_dump(mode="json", exclude_none=True),
+        invoices=[_to_detail_response(invoice) for invoice in invoices],
+    )
 
 
 @router.get("", response_model=InvoiceListResponse)
@@ -539,6 +574,7 @@ def _to_detail_response(invoice) -> InvoiceDetailResponse:
                 quantity=item.quantity,
                 unit_price=item.unit_price,
                 line_total=item.line_total,
+                category=item.category,
             )
             for item in invoice.line_items
         ],
@@ -550,6 +586,8 @@ def _to_detail_response(invoice) -> InvoiceDetailResponse:
                 severity=result.severity,
                 message=result.message,
                 passed=result.passed,
+                explanation=result.explanation,
+                suggested_fix=result.suggested_fix,
             )
             for result in invoice.validation_results
         ],

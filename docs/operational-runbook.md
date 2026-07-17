@@ -115,6 +115,7 @@ Check:
 - prompt version
 - average input/output tokens
 - `invoice_platform_ai_estimated_cost_total`
+- `invoice_platform_extraction_escalations_total` (tiering escalations double the calls for affected invoices)
 - retry count
 
 Target remediation:
@@ -122,6 +123,38 @@ Target remediation:
 - disable automatic extraction if spend is uncontrolled
 - roll back prompt version if token usage changed unexpectedly
 - cap retry policy for repeated provider failures
+- enable `EXTRACTION_TIERING_ENABLED` (cheap model first) or lower `EXTRACTION_IMAGE_MAX_DIMENSION` to cut per-invoice cost
+- reduce `EXTRACTION_FEW_SHOT_EXAMPLES` if few-shot examples inflated prompt tokens
+- confirm `EMBEDDING_REUSE_ENABLED` is on so duplicate content is not re-embedded
+
+### Auto-approval approving invoices it should not
+
+Check:
+
+- audit log for `invoice.auto_approved` actions on the affected invoices (confidence values are in the event metadata)
+- `invoice_platform_invoices_auto_approved_total` rate against the expected volume
+- whether anomaly detection was enabled (`ANOMALY_DETECTION_ENABLED`) and its validation rows on the invoices
+- current `AUTO_APPROVAL_MIN_CONFIDENCE` and `FIELD_CONFIDENCE_REVIEW_THRESHOLD`
+
+Remediation:
+
+- set `AUTO_APPROVAL_ENABLED=false` and restart the worker to route everything to human review immediately (extraction is unaffected)
+- raise `AUTO_APPROVAL_MIN_CONFIDENCE` before re-enabling
+- auto-approved invoices are terminal (`approved`); handle incorrect ones through the normal financial reversal process and keep the audit trail intact
+
+### Anomaly detection flagging too many invoices
+
+Check:
+
+- `invoice_platform_anomalies_flagged_total` by `rule_code`
+- whether flagged suppliers have enough approved history (`ANOMALY_MIN_HISTORY`)
+- validation rows with `amount_anomaly` / `near_duplicate_similarity` on sampled invoices
+
+Remediation:
+
+- raise `ANOMALY_AMOUNT_ZSCORE_THRESHOLD` or `NEAR_DUPLICATE_SIMILARITY_THRESHOLD`
+- raise `ANOMALY_MIN_HISTORY` so young suppliers are not scored on thin history
+- set `ANOMALY_DETECTION_ENABLED=false` only as a last resort; it also disables the near-duplicate guard in front of auto-approval
 
 ### Cross-tenant access report
 

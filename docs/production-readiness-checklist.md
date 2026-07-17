@@ -47,7 +47,16 @@ Frontend scope note: the previous static cockpit has been retired. The React/Vit
 - [ ] Cost estimates are tracked from production provider responses and verified with live provider tests
 - [x] Invalid AI responses are handled
 - [x] Confidence scores are stored
+- [x] Per-field confidence scores are stored and low-confidence fields route to review
 - [x] Human corrections are recorded
+- [x] Extraction accuracy is measurable per prompt version from reviewer corrections
+- [x] Auto-approval is confidence-gated, anomaly-gated, and audited with a distinct action
+- [x] Anomaly detection flags supplier amount outliers and near-duplicates before auto-approval
+- [x] Failed validation rules carry reviewer-facing explanations and suggested fixes
+- [x] Line items carry AI-assigned expense categories from a closed set
+- [x] Extraction cost levers exist (model tiering, embedding reuse, image downscaling, few-shot cap)
+- [ ] Auto-approval and anomaly thresholds are tuned against representative production invoices
+- [ ] Per-field confidences and categories are verified with live provider tests
 
 ## Security
 

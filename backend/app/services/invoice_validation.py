@@ -25,6 +25,10 @@ class InvoiceValidationInput:
     duplicate_invoice_number: bool = False
     approval_threshold: Decimal = Decimal("10000.00")
     line_items: tuple[InvoiceLineItemInput, ...] = ()
+    # Per-field extraction confidences (field name -> 0..1). None means the
+    # extractor did not report them, which skips the per-field rules entirely.
+    field_confidences: dict[str, Decimal] | None = None
+    field_confidence_threshold: Decimal = Decimal("0.75")
 
 
 @dataclass(frozen=True)
@@ -78,8 +82,34 @@ def validate_invoice(payload: InvoiceValidationInput) -> list[InvoiceValidationR
         ),
     ]
 
+    results.extend(_validate_field_confidences(payload))
     results.extend(_validate_line_items(payload.line_items))
     return results
+
+
+def _validate_field_confidences(payload: InvoiceValidationInput) -> list[InvoiceValidationResult]:
+    # One rule result per low-confidence field so the review UI can highlight
+    # exactly which extracted values need human eyes. Fields the extractor
+    # reported as null-confidence (or when confidences are absent) are skipped —
+    # missing values are caught by the required-field rules above.
+    if not payload.field_confidences:
+        return []
+
+    results: list[InvoiceValidationResult] = []
+    for field_name, confidence in sorted(payload.field_confidences.items()):
+        if confidence is None:
+            continue
+        results.append(
+            InvoiceValidationResult(
+                rule_code="field_confidence_low",
+                severity="warning",
+                message=f"Extraction confidence for field '{field_name}' is below the review threshold.",
+                passed=confidence >= payload.field_confidence_threshold,
+            )
+        )
+    # Only surface failures; emitting a passed row per confident field would
+    # drown the validation panel in noise.
+    return [result for result in results if not result.passed]
 
 
 def next_status_after_validation(results: list[InvoiceValidationResult]) -> InvoiceStatus:

@@ -38,6 +38,21 @@ export function useExtractionProvidersQuery(session: Session | null) {
   });
 }
 
+// Natural-language search is a mutation (not a query) because it should only
+// run on explicit submit — every keystroke hitting an LLM-backed endpoint
+// would be slow and wasteful. Results live in mutation state; the caller
+// decides when they replace the normal list.
+export function useNLSearchInvoicesMutation(session: Session | null) {
+  const { setToast } = useToast();
+
+  return useMutation({
+    mutationFn: (query: string) => invoiceService.nlSearch(session as Session, query),
+    onError: (error) => {
+      setToast({ message: errorMessage(error), tone: "error" });
+    },
+  });
+}
+
 export function useUploadInvoiceMutation(session: Session | null) {
   const queryClient = useQueryClient();
   const { setToast } = useToast();

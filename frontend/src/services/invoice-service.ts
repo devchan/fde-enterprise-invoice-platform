@@ -1,4 +1,11 @@
-import type { ExtractionProvidersResponse, InvoiceDetail, InvoiceFile, Session, SimilarInvoicesResponse } from "../domain/types";
+import type {
+  ExtractionProvidersResponse,
+  InvoiceDetail,
+  InvoiceFile,
+  InvoiceNLSearchResponse,
+  Session,
+  SimilarInvoicesResponse,
+} from "../domain/types";
 import type { ApiClient } from "./api-client";
 
 export class InvoiceService {
@@ -20,6 +27,17 @@ export class InvoiceService {
   async similar(session: Session, invoiceId: string): Promise<SimilarInvoicesResponse["similar_invoices"]> {
     const data = await this.apiClient.request<SimilarInvoicesResponse>(`/api/v1/invoices/${invoiceId}/similar`, {}, session);
     return data.similar_invoices;
+  }
+
+  // Natural-language search: the server translates the query into structured
+  // filters (LLM or fallback parser) and runs them tenant-scoped — the model
+  // never touches data, so this is as safe as the normal list endpoint.
+  nlSearch(session: Session, query: string): Promise<InvoiceNLSearchResponse> {
+    return this.apiClient.request<InvoiceNLSearchResponse>(
+      "/api/v1/invoices/nl-search",
+      { method: "POST", body: JSON.stringify({ query }) },
+      session,
+    );
   }
 
   // Lists extraction providers and whether each is usable, so the upload form

@@ -134,6 +134,43 @@ def build_invoice_embedder():
     return DevelopmentInvoiceEmbedder()
 
 
+def reuse_existing_embedding(
+    db: Any, *, organization_id: UUID, source_text: str, model_name: str
+) -> EmbeddingResult | None:
+    """Cost optimization: an embedding is a pure function of (model, text), so
+    when the exact source text was already embedded with the same model — a
+    duplicate upload or a reprocess with unchanged extraction — reuse the stored
+    vector instead of paying for a provider call. Scoped to the organization so
+    the lookup can never read another tenant's rows."""
+    if not settings.embedding_reuse_enabled:
+        return None
+
+    from sqlalchemy import select
+
+    from app.models.invoice import Invoice, InvoiceEmbedding
+
+    existing = db.scalar(
+        select(InvoiceEmbedding)
+        .join(Invoice, Invoice.id == InvoiceEmbedding.invoice_id)
+        .where(
+            Invoice.organization_id == organization_id,
+            InvoiceEmbedding.model_name == model_name,
+            InvoiceEmbedding.source_text == source_text,
+        )
+        .limit(1)
+    )
+    if existing is None:
+        return None
+
+    return EmbeddingResult(
+        vector=list(existing.embedding),
+        model_name=existing.model_name,
+        # Reused vectors cost nothing; don't copy the original row's spend.
+        input_tokens=None,
+        estimated_cost=None,
+    )
+
+
 def persist_invoice_embedding(db: Any, *, invoice: Any, source_text: str, result: EmbeddingResult):
     from sqlalchemy import select
 

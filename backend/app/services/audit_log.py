@@ -199,6 +199,47 @@ def invoice_review_decision_event(
     )
 
 
+def invoice_auto_approved_event(
+    *,
+    invoice_id: UUID,
+    actor_id: UUID,
+    confidence_score: str,
+    min_field_confidence: str | None,
+) -> AuditEvent:
+    # Distinct action (not invoice.review_decision) so compliance reporting can
+    # always separate machine approvals from human ones.
+    return AuditEvent(
+        actor_id=actor_id,
+        entity_type="invoice",
+        entity_id=invoice_id,
+        action="invoice.auto_approved",
+        metadata={
+            "confidence_score": confidence_score,
+            "min_field_confidence": min_field_confidence,
+            "status": InvoiceStatus.APPROVED.value,
+        },
+    )
+
+
+def invoice_anomaly_flagged_event(
+    *,
+    invoice_id: UUID,
+    actor_id: UUID,
+    rule_code: str,
+    message: str,
+) -> AuditEvent:
+    return AuditEvent(
+        actor_id=actor_id,
+        entity_type="invoice",
+        entity_id=invoice_id,
+        action="invoice.anomaly_flagged",
+        metadata={
+            "rule_code": rule_code,
+            "message": message,
+        },
+    )
+
+
 def user_admin_event(
     *,
     actor_id: UUID,

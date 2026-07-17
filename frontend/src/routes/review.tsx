@@ -7,6 +7,7 @@ import {
   useBulkReviewInvoicesMutation,
   useInvoiceQuery,
   useInvoicesQuery,
+  useNLSearchInvoicesMutation,
   useOpenInvoiceFileMutation,
   useReviewInvoiceMutation,
   useSimilarInvoicesQuery,
@@ -36,15 +37,24 @@ function ReviewRoute() {
   const reviewMutation = useReviewInvoiceMutation(session);
   const bulkReviewMutation = useBulkReviewInvoicesMutation(session);
   const openFileMutation = useOpenInvoiceFileMutation(session);
+  const nlSearchMutation = useNLSearchInvoicesMutation(session);
 
   if (!session) return <SignInRequiredPanel title="Sign in to review invoices." />;
   if (!userCanReview) return <AccessRequiredPanel title="Review requires admin or reviewer access." />;
 
   const selectedInvoice = selectedInvoiceQuery.data ?? null;
+  // While an AI search result is present it replaces the normal list; reset()
+  // (via onClearAiSearch) restores the standard query-backed listing.
+  const aiSearchResult = nlSearchMutation.data ?? null;
 
   return (
     <ReviewPanel
-      invoices={invoicesQuery.data ?? []}
+      aiFilters={aiSearchResult?.filters ?? null}
+      aiSearchActive={aiSearchResult !== null}
+      isAiSearching={nlSearchMutation.isPending}
+      onAiSearch={(query) => nlSearchMutation.mutate(query)}
+      onClearAiSearch={() => nlSearchMutation.reset()}
+      invoices={aiSearchResult?.invoices ?? invoicesQuery.data ?? []}
       isApproving={reviewMutation.isPending && reviewMutation.variables?.decision === "approve"}
       isRejecting={reviewMutation.isPending && reviewMutation.variables?.decision === "reject"}
       onBulkReview={(decision, invoices) => bulkReviewMutation.mutate({ invoices, decision })}

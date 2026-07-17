@@ -89,7 +89,7 @@ Remaining hardening before Phase 3 is production-complete:
 
 Goal: extract structured invoice data with traceability.
 
-Status: extraction schema, prompt version persistence, extraction rows, line items, validation rows, worker integration, and OpenAI Responses API client wiring are implemented. The flow has been smoke-tested with the development extractor; live OpenAI verification still requires a configured API key and representative invoice fixtures.
+Status: extraction schema, prompt version persistence, extraction rows, line items, validation rows, worker integration, and OpenAI Responses API client wiring are implemented. The schema now also carries per-field confidences and line-item categories, and extraction is retrieval-augmented with approved same-supplier examples (see Phase 9). The flow has been smoke-tested with the development extractor; live OpenAI verification still requires a configured API key and representative invoice fixtures.
 
 Deliverables:
 
@@ -157,6 +157,7 @@ Implemented slice:
 - `GET /api/v1/events/stream` Server-Sent Events subscription with react-query cache invalidation for live updates
 - confirmation dialogs for reject-invoice and password-reset actions
 - Cmd/Ctrl+K command palette and invoice-review breadcrumb
+- AI review signals in the cockpit: low-confidence field highlighting, validation explanations with suggested fixes, anomaly badges, line-item category badges, an auto-approved badge, and an "Ask AI" natural-language search bar (see Phase 9)
 
 Exit criteria:
 
@@ -272,3 +273,37 @@ Implemented slice:
 Exit criteria:
 
 - production deploys are repeatable, observable, and reversible.
+
+## Phase 9: AI-Assisted Review Optimization
+
+Goal: raise touchless throughput and extraction quality while keeping humans in control of uncertain cases.
+
+Status: implemented and covered by unit tests, the Docker test suite, and a live end-to-end smoke (upload → worker → review → accuracy report). Auto-approval and anomaly thresholds still need tuning against representative production data.
+
+Deliverables:
+
+- per-field extraction confidences in the strict schema (prompt version `2026-07-17.v2`)
+- `field_confidence_low` validation rule routing weak fields to review
+- confidence-gated auto-approval with `invoice.auto_approved` audit action and metric
+- post-extraction anomaly detection (supplier amount z-score outliers, embedding near-duplicates) that demotes passing invoices back to review
+- plain-language explanations and suggested fixes persisted on failed validation rules
+- AI line-item expense categorization (closed category set)
+- retrieval-augmented extraction from approved same-supplier invoices
+- extraction accuracy analytics from reviewer corrections (`GET /api/v1/extraction/accuracy`) plus per-field correction metrics
+- natural-language invoice search (`POST /api/v1/invoices/nl-search`) with a deterministic no-key fallback parser
+- optional extraction model tiering with escalation on low confidence and aggregated cost
+- embedding reuse for identical source text and pre-extraction image downscaling
+- cockpit UI: low-confidence field highlighting, validation explanations, anomaly badges, category badges, auto-approved badge, and an "Ask AI" search bar
+- Grafana panels and Prometheus counters for auto-approvals, anomalies, corrections, and escalations
+
+Exit criteria:
+
+- clean high-confidence invoices approve without human touch, and every machine approval is auditable.
+- anomalous or low-confidence invoices always reach a human with actionable guidance.
+- extraction quality per prompt version is measurable from reviewer corrections.
+
+Remaining hardening before Phase 9 is production-complete:
+
+- tune `AUTO_APPROVAL_MIN_CONFIDENCE`, anomaly z-score, and near-duplicate thresholds against representative production invoices
+- run live-provider verification of per-field confidences and categories with real invoice fixtures
+- consider reviewer feedback capture on explanation quality if LLM-written explanations are enabled

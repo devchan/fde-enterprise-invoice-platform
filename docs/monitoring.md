@@ -22,6 +22,10 @@ metric families:
 - `invoice_platform_processing_job_duration_seconds_count`
 - `invoice_platform_validation_failures_total`
 - `invoice_platform_ai_estimated_cost_total`
+- `invoice_platform_invoices_auto_approved_total` (counter; touchless-processing KPI)
+- `invoice_platform_extraction_field_corrections_total{field}` (counter; reviewer corrections = extraction misses)
+- `invoice_platform_extraction_escalations_total` (counter; model-tiering escalations to the primary model)
+- `invoice_platform_anomalies_flagged_total{rule_code}` (counter; amount outliers and near-duplicates)
 
 ### Latency percentiles
 
@@ -53,6 +57,10 @@ The dashboard expects a Prometheus datasource and uses these panels:
 - average completed processing duration
 - validation failures
 - estimated AI cost
+- auto-approved invoices (touchless-processing KPI)
+- anomalies flagged (by rule)
+- extraction escalations (model tiering)
+- reviewer field corrections by field (extraction misses over time)
 
 ## Local Scrape Target
 
@@ -83,4 +91,9 @@ query time.
 
 Database-derived gauges (queue depth, failed jobs, validation failures,
 estimated AI cost, completed-job duration) are computed at scrape time from
-Postgres/Redis. Distributed tracing (OpenTelemetry) is not yet implemented.
+Postgres/Redis. The worker-side AI counters (auto-approvals, anomaly flags,
+escalations) live in the worker process, so scraping them requires either a
+worker metrics port or `PROMETHEUS_MULTIPROC_DIR` shared with the API in
+single-host deployments; the API-side counters (field corrections) are always
+visible on `/metrics`. Distributed tracing (OpenTelemetry) is available opt-in
+via `OTEL_ENABLED`; a hosted tracing backend remains an operator step.

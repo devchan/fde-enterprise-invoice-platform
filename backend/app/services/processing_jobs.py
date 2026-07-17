@@ -124,10 +124,12 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
     from app.models.audit import AuditLog
     from app.models.invoice import Invoice
     from app.models.processing import ProcessingJob
+    from app.services.file_preprocessing import preprocess_for_extraction
     from app.services.file_storage import read_invoice_file
     from app.services.invoice_extraction import (
-        build_invoice_extractor,
+        few_shot_examples,
         persist_extraction_result,
+        run_invoice_extraction,
     )
 
     job = db.get(ProcessingJob, processing_job_id)
@@ -158,12 +160,21 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
         raise ProcessingJobError("Invoice has no stored file to process.")
 
     file_bytes = read_invoice_file(storage_key=invoice_file.storage_key)
-    # Honour the provider chosen at upload; build_invoice_extractor falls back
-    # gracefully if that provider isn't configured.
-    extraction_result = build_invoice_extractor(provider=job.provider).extract(
+    # Downscale oversized image uploads before the provider call to cut
+    # vision-token cost; the stored original is untouched.
+    file_bytes = preprocess_for_extraction(file_bytes=file_bytes, mime_type=invoice_file.mime_type)
+    # Retrieval-augmented extraction: recent approved invoices from the same
+    # supplier serve as few-shot layout examples in the prompt.
+    examples = few_shot_examples(db, invoice=invoice)
+    # Honour the provider chosen at upload; run_invoice_extraction falls back
+    # gracefully if that provider isn't configured, and applies model tiering
+    # (cheap model first, escalate on low confidence) when enabled.
+    extraction_result = run_invoice_extraction(
         invoice=invoice,
         file_bytes=file_bytes,
         mime_type=invoice_file.mime_type,
+        provider=job.provider,
+        examples=examples,
     )
     # Capture the status before persisting so we only emit a status-changed
     # audit event below if extraction actually advanced the invoice's state.
@@ -214,6 +225,15 @@ def process_invoice_extraction_job(db: Any, processing_job_id: UUID) -> Processi
     # provider hiccup here must not fail a job whose extraction already
     # succeeded. Similar-invoice search simply has no row until a later run.
     _embed_invoice(db, invoice=invoice, payload=extraction_result.payload)
+    # Anomaly detection needs the embedding (near-duplicate check), so it runs
+    # next; any hit demotes VALIDATION_PASSED back to REVIEW_REQUIRED.
+    from app.services.invoice_anomaly import apply_anomaly_flags
+    from app.services.invoice_auto_approval import maybe_auto_approve
+
+    apply_anomaly_flags(db, invoice=invoice)
+    # Auto-approval runs last so it only sees invoices that survived both
+    # validation and anomaly detection.
+    maybe_auto_approve(db, invoice=invoice, payload=extraction_result.payload)
     publish_event(
         invoice.organization_id,
         {
@@ -238,12 +258,23 @@ def _embed_invoice(db: Any, *, invoice: Any, payload: Any) -> None:
         build_invoice_embedder,
         embedding_source_text,
         persist_invoice_embedding,
+        reuse_existing_embedding,
     )
 
     logger = structlog.get_logger("app.services.processing_jobs")
     try:
         source_text = embedding_source_text(invoice=invoice, payload=payload)
-        result = build_invoice_embedder().embed(text=source_text)
+        embedder = build_invoice_embedder()
+        # Identical source text already embedded with this model (duplicate
+        # upload / unchanged reprocess) — reuse the vector, skip the API call.
+        result = reuse_existing_embedding(
+            db,
+            organization_id=invoice.organization_id,
+            source_text=source_text,
+            model_name=embedder.model_name,
+        )
+        if result is None:
+            result = embedder.embed(text=source_text)
         persist_invoice_embedding(db, invoice=invoice, source_text=source_text, result=result)
         db.commit()
         logger.info(

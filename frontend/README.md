@@ -10,16 +10,17 @@ The frontend stack is:
 - React
 - TypeScript
 - Tailwind CSS
+- shadcn/ui (Radix primitives)
 - Lucide icons
 - TanStack Query
+- TanStack Router
 - TanStack Table
 - React Hook Form
 - Zod
 
 Likely production-grade additions after the current cockpit:
 
-- shadcn-compatible utility dependencies
-- Recharts
+- Recharts for dashboard analytics
 
 The current cockpit workflows are:
 
@@ -37,6 +38,11 @@ The current cockpit workflows are:
 - approve/reject submission through `POST /api/v1/invoices/{invoice_id}/review`
 - stale-review protection through `expected_updated_at`
 - signed file URL creation for uploaded invoice files
+- "Ask AI" natural-language invoice search through `POST /api/v1/invoices/nl-search`, with interpreted-filter chips and a reset control
+- low-confidence highlighting on correction fields (per-field extraction confidences below 0.75)
+- validation explanations and suggested fixes under failed rules, with anomaly badges for `amount_anomaly`/`near_duplicate_similarity`
+- AI-assigned expense category badges on line items
+- "Auto-approved by AI" badge for invoices approved without a human review
 - dashboard drill-down beyond the current cockpit panels remains pending
 
 ## Source layout
@@ -45,17 +51,20 @@ The React code is structured by responsibility instead of keeping UI, API calls,
 
 ```text
 src/
-  app/                  app-level navigation and cockpit controller hook
+  app/                  app shell and TanStack Router assembly
   components/common/    reusable presentational UI primitives
   domain/               typed domain models and authorization rules
   features/             feature panels grouped by business workflow
+  queries/              TanStack Query hooks, one file per resource
+  routes/               route components wired to queries and features
   services/             API client, session persistence, and endpoint services
+  lib/                  shared utilities (shadcn/ui helpers)
+  test/                 Vitest unit tests
   utils/                small formatting and form helpers
-  App.tsx               composition shell only
   main.tsx              React bootstrap
 ```
 
-Feature code should depend on domain types and service contracts, not raw `fetch` calls. Cross-feature behavior belongs in `app/useCockpitController.ts`; endpoint-specific behavior belongs under `services/`; reusable visual pieces belong under `components/common/`.
+Feature code should depend on domain types and service contracts, not raw `fetch` calls. Server state belongs in `queries/` (TanStack Query hooks); endpoint-specific behavior belongs under `services/`; reusable visual pieces belong under `components/common/`.
 
 Current frontend production patterns:
 

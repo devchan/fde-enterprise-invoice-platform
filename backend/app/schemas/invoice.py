@@ -66,6 +66,9 @@ class InvoiceLineItemResponse(BaseModel):
     quantity: Decimal | None
     unit_price: Decimal | None
     line_total: Decimal | None
+    # AI-assigned expense category (see LINE_ITEM_CATEGORIES); null when the
+    # extractor was unsure or the row predates categorization.
+    category: str | None = None
 
 
 class InvoiceExtractionResponse(BaseModel):
@@ -85,6 +88,9 @@ class InvoiceValidationResultResponse(BaseModel):
     severity: str
     message: str
     passed: bool
+    # Reviewer-facing guidance for failed rules; null for passed/legacy rows.
+    explanation: str | None = None
+    suggested_fix: str | None = None
 
 
 class InvoiceReviewResponse(BaseModel):
@@ -135,6 +141,18 @@ class SimilarInvoiceResponse(BaseModel):
 class SimilarInvoicesResponse(BaseModel):
     invoice_id: UUID
     similar_invoices: list[SimilarInvoiceResponse]
+
+
+class InvoiceNLSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+
+
+class InvoiceNLSearchResponse(BaseModel):
+    query: str
+    # The structured filters the query was translated into, echoed back so the
+    # UI can show users how their request was interpreted.
+    filters: dict[str, Any]
+    invoices: list[InvoiceDetailResponse]
 
 
 class InvoiceReviewRequest(BaseModel):

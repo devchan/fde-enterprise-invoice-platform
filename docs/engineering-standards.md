@@ -42,9 +42,14 @@ These standards define the bar for production-grade implementation.
 
 - Use strict structured output schemas.
 - Store model name, prompt version, token usage, estimated cost, confidence score, and extraction result.
+- Store per-field confidences; a low-confidence field must route the invoice to human review.
 - Treat invalid AI output as a controlled failure.
 - Prompt changes must be versioned.
-- Human corrections must be recorded.
+- Human corrections must be recorded and fed back as accuracy measurement per prompt version.
+- Automatic approval must be gated on validation, anomaly detection, and confidence — and audited with an action distinct from human approval.
+- LLMs may translate user intent into structured filters, but must never generate SQL or bypass tenant-scoped queries.
+- Every AI step in the worker pipeline beyond extraction itself (embedding, anomaly detection, explanations, auto-approval) must be best-effort: its failure must not fail a completed extraction.
+- Cost controls (model tiering, embedding reuse, input preprocessing) must never silently reduce accounting accuracy — aggregate and persist the real spend.
 
 ## Testing Standards
 

@@ -1,24 +1,57 @@
 import { useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CheckCircle2, Download, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Loader2, RefreshCw, Sparkles, X, XCircle } from "lucide-react";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { DataBlock } from "../../components/common/DataBlock";
 import { DataTable } from "../../components/common/DataTable";
 import { EmptyPanel } from "../../components/common/EmptyPanel";
 import { Field } from "../../components/common/Field";
 import { StatusPill } from "../../components/common/StatusPill";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import type { InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
+import type { FieldConfidences, InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
 import { formatDate } from "../../utils/format";
 
+// Below this per-field extraction confidence the review form highlights the
+// field so the reviewer verifies it against the document (matches the server's
+// field_confidence_low threshold).
+const FIELD_CONFIDENCE_WARN_THRESHOLD = 0.75;
+
+// Rule codes produced by post-extraction anomaly detection (not document
+// validation); rendered with a distinct badge so reviewers read them as fraud/
+// duplicate signals rather than data errors.
+const ANOMALY_RULE_CODES = new Set(["amount_anomaly", "near_duplicate_similarity"]);
+
+// Pull the extractor's per-field confidences out of the raw payload. Defensive:
+// older extractions (or non-object payloads) simply yield no highlights.
+function fieldConfidences(invoice: InvoiceDetail): FieldConfidences {
+  const payload = invoice.latest_extraction?.extracted_payload;
+  const confidences = payload && typeof payload === "object" ? (payload as Record<string, unknown>).field_confidences : null;
+  return confidences && typeof confidences === "object" ? (confidences as FieldConfidences) : {};
+}
+
+function confidenceWarning(confidences: FieldConfidences, field: keyof FieldConfidences): string | undefined {
+  const raw = confidences[field];
+  if (raw == null) return undefined;
+  const value = Number(raw);
+  if (Number.isNaN(value) || value >= FIELD_CONFIDENCE_WARN_THRESHOLD) return undefined;
+  return `AI confidence ${Math.round(value * 100)}% — verify against document`;
+}
+
 export function ReviewPanel({
+  aiFilters,
+  aiSearchActive,
   invoices,
+  isAiSearching,
   isApproving,
   isRejecting,
+  onAiSearch,
   onBulkReview,
+  onClearAiSearch,
   onClearSelection,
   onOpenFile,
   onRefresh,
@@ -29,10 +62,15 @@ export function ReviewPanel({
   similarInvoices,
   similarInvoicesLoading,
 }: {
+  aiFilters: Record<string, unknown> | null;
+  aiSearchActive: boolean;
   invoices: InvoiceDetail[];
+  isAiSearching: boolean;
   isApproving: boolean;
   isRejecting: boolean;
+  onAiSearch: (query: string) => void;
   onBulkReview: (decision: "approve" | "reject", invoices: InvoiceDetail[]) => void;
+  onClearAiSearch: () => void;
   onClearSelection: () => void;
   onOpenFile: (file: InvoiceFile) => void;
   onRefresh: () => void;
@@ -46,6 +84,7 @@ export function ReviewPanel({
   const reviewFormRef = useRef<HTMLFormElement>(null);
   const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
   const [pendingBulkReject, setPendingBulkReject] = useState<InvoiceDetail[] | null>(null);
+  const [aiQuery, setAiQuery] = useState("");
 
   // Defined inside the component so the invoice-number cell can close over onSelect.
   const invoiceColumns: ColumnDef<InvoiceDetail>[] = [
@@ -84,6 +123,50 @@ export function ReviewPanel({
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
+          {/* Natural-language search: submitted (never per-keystroke) because the
+              server may consult an LLM to interpret the query. */}
+          <form
+            className="mt-4 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (aiQuery.trim()) onAiSearch(aiQuery.trim());
+            }}
+          >
+            <Input
+              aria-label="Ask AI to search invoices"
+              onChange={(event) => setAiQuery(event.target.value)}
+              placeholder='Ask AI: "approved acme invoices over $10k from june"'
+              value={aiQuery}
+            />
+            <Button aria-label="Search with AI" disabled={isAiSearching || !aiQuery.trim()} size="icon" title="Search with AI" type="submit" variant="outline">
+              {isAiSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            </Button>
+          </form>
+          {aiSearchActive ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Interpreted as:</span>
+              {aiFilters && Object.keys(aiFilters).length > 0 ? (
+                Object.entries(aiFilters).map(([key, value]) => (
+                  <Badge key={key} variant="secondary">
+                    {key}={String(value)}
+                  </Badge>
+                ))
+              ) : (
+                <Badge variant="secondary">no filters</Badge>
+              )}
+              <button
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+                onClick={() => {
+                  setAiQuery("");
+                  onClearAiSearch();
+                }}
+                type="button"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </button>
+            </div>
+          ) : null}
           <div className="mt-4">
             <DataTable
               bulkActions={[
@@ -124,7 +207,17 @@ export function ReviewPanel({
                   {selectedInvoice.currency} {selectedInvoice.total_amount || "0.00"} · {selectedInvoice.status}
                 </p>
               </div>
-              <StatusPill label={selectedInvoice.status} tone={selectedInvoice.status === "approved" ? "ok" : selectedInvoice.status === "failed" ? "error" : "info"} />
+              <div className="flex items-center gap-2">
+                {/* An approved invoice with no review rows can only have been
+                    approved by the confidence-gated auto-approval step. */}
+                {selectedInvoice.status === "approved" && selectedInvoice.reviews.length === 0 ? (
+                  <Badge variant="success">
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Auto-approved by AI
+                  </Badge>
+                ) : null}
+                <StatusPill label={selectedInvoice.status} tone={selectedInvoice.status === "approved" ? "ok" : selectedInvoice.status === "failed" ? "error" : "info"} />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -138,11 +231,35 @@ export function ReviewPanel({
               }}
               ref={reviewFormRef}
             >
-              {/* Prefilled with the extracted values so reviewers edit-in-place to correct them. */}
-              <Field label="Invoice number" name="invoice_number" defaultValue={selectedInvoice.invoice_number} />
-              <Field label="Invoice date" name="invoice_date" type="date" defaultValue={selectedInvoice.invoice_date || ""} />
-              <Field label="Total amount" name="total_amount" type="number" step="0.01" defaultValue={selectedInvoice.total_amount || ""} />
-              <Field label="Currency" name="currency" defaultValue={selectedInvoice.currency} />
+              {/* Prefilled with the extracted values so reviewers edit-in-place to correct
+                  them; fields the extractor was unsure about get an amber warning. */}
+              <Field
+                defaultValue={selectedInvoice.invoice_number}
+                label="Invoice number"
+                name="invoice_number"
+                warning={confidenceWarning(fieldConfidences(selectedInvoice), "invoice_number")}
+              />
+              <Field
+                defaultValue={selectedInvoice.invoice_date || ""}
+                label="Invoice date"
+                name="invoice_date"
+                type="date"
+                warning={confidenceWarning(fieldConfidences(selectedInvoice), "invoice_date")}
+              />
+              <Field
+                defaultValue={selectedInvoice.total_amount || ""}
+                label="Total amount"
+                name="total_amount"
+                step="0.01"
+                type="number"
+                warning={confidenceWarning(fieldConfidences(selectedInvoice), "total_amount")}
+              />
+              <Field
+                defaultValue={selectedInvoice.currency}
+                label="Currency"
+                name="currency"
+                warning={confidenceWarning(fieldConfidences(selectedInvoice), "currency")}
+              />
               <div className="grid gap-1.5 md:col-span-2">
                 <Label htmlFor="notes">Review notes</Label>
                 <Textarea id="notes" name="notes" rows={3} placeholder="Decision notes" />
@@ -227,9 +344,23 @@ function DetailSections({
       <DataBlock title="Validation">
         {invoice.validation_results.length === 0 ? <p className="text-sm text-muted-foreground">No validation results.</p> : null}
         {invoice.validation_results.map((result) => (
-          <div className="list-row" key={result.validation_result_id}>
-            <span>{result.rule_code}</span>
-            <span className={result.passed ? "text-primary" : "text-destructive"}>{result.passed ? "passed" : result.severity}</span>
+          <div className="py-1" key={result.validation_result_id}>
+            <div className="list-row">
+              <span className="flex items-center gap-2">
+                {result.rule_code}
+                {ANOMALY_RULE_CODES.has(result.rule_code) ? <StatusPill label="anomaly" tone="error" /> : null}
+              </span>
+              <span className={result.passed ? "text-primary" : "text-destructive"}>{result.passed ? "passed" : result.severity}</span>
+            </div>
+            {/* AI/template-written reviewer guidance, present only on failed rules. */}
+            {!result.passed && result.explanation ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">{result.explanation}</p>
+            ) : null}
+            {!result.passed && result.suggested_fix ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Fix:</span> {result.suggested_fix}
+              </p>
+            ) : null}
           </div>
         ))}
       </DataBlock>
@@ -248,7 +379,11 @@ function DetailSections({
         {invoice.line_items.length === 0 ? <p className="text-sm text-muted-foreground">No line items.</p> : null}
         {invoice.line_items.map((item) => (
           <div className="list-row" key={item.line_item_id}>
-            <span>{item.description}</span>
+            <span className="flex items-center gap-2">
+              {item.description}
+              {/* AI-assigned expense category; absent for legacy rows or when the model was unsure. */}
+              {item.category ? <Badge variant="secondary">{item.category.replace(/_/g, " ")}</Badge> : null}
+            </span>
             <span>{item.line_total || "-"}</span>
           </div>
         ))}

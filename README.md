@@ -119,6 +119,16 @@ Login
 - `GET /api/v1/events/stream` Server-Sent Events endpoint (Redis pub/sub) for live invoice/job status updates in the cockpit, replacing polling
 - Confirmation dialogs for reject-invoice and password-reset actions; accessibility fixes for form errors and icon-only controls
 - Cmd/Ctrl+K command palette and invoice-review breadcrumb navigation in the cockpit
+- Per-field extraction confidences with a `field_confidence_low` validation rule that routes weak fields to review
+- Confidence-gated auto-approval (touchless processing) with a dedicated `invoice.auto_approved` audit action and Prometheus counter
+- Post-extraction anomaly detection: supplier amount outliers (z-score over approved history) and embedding near-duplicate flags that demote invoices back to review
+- Plain-language explanations and suggested fixes on failed validation rules (deterministic templates, optional LLM enrichment)
+- AI line-item expense categorization persisted on invoice line items
+- Retrieval-augmented extraction: recent approved same-supplier invoices injected as few-shot prompt examples
+- Extraction accuracy analytics derived from reviewer corrections (`GET /api/v1/extraction/accuracy`, per prompt version and field) plus a per-field correction counter metric
+- Natural-language invoice search (`POST /api/v1/invoices/nl-search`) translating queries to tenant-scoped filters, with a deterministic no-key fallback parser
+- Optional model tiering (cheap extraction model first, escalate on low confidence) with aggregated cost accounting
+- Embedding reuse for identical source text and image downscaling before extraction to cut provider cost
 
 ## Local Development
 

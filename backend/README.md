@@ -33,14 +33,18 @@ uvicorn app.main:app --reload
 ## API Surface
 
 - `GET /health`
-- `POST /api/v1/invoices`
+- `POST /api/v1/auth/login` (plus refresh/logout session endpoints)
+- `GET`/`POST /api/v1/invoices` and `POST /api/v1/invoices/upload`
+- `POST /api/v1/invoices/nl-search` — natural-language invoice search
+- `GET /api/v1/invoices/{invoice_id}` and `POST /api/v1/invoices/{invoice_id}/review`
 - `POST /api/v1/invoices/{invoice_id}/status`
-- `GET /api/v1/processing-jobs/{processing_job_id}`
-- `GET /api/v1/processing-jobs/failed`
-- `POST /api/v1/processing-jobs/{processing_job_id}/reprocess`
+- `GET /api/v1/invoices/{invoice_id}/similar` — pgvector similar-invoice search
+- `GET /api/v1/invoices/{invoice_id}/files/{file_id}/download-url` and signed `/download`
+- `GET /api/v1/extraction/providers` and `GET /api/v1/extraction/accuracy`
+- `GET /api/v1/processing-jobs/{processing_job_id}`, `GET /api/v1/processing-jobs/failed`, `POST /api/v1/processing-jobs/{processing_job_id}/reprocess`
+- `GET /api/v1/audit-logs`, user-admin endpoints under `/api/v1/users`
+- `GET /api/v1/events/stream` (Server-Sent Events), `GET /metrics`
 
-The current invoice endpoints establish request/response contracts and workflow transition rules. The backend also has testable domain services for invoice validation routing and audit-event construction.
+See [docs/api-contract.md](../docs/api-contract.md) for the full contract.
 
-Invoice metadata persistence, file upload persistence, audit log persistence, upload-time processing job creation, Redis worker execution, extraction persistence, validation result persistence, failed-job inspection, manual reprocess, and persisted status transitions are wired in code and backed by Alembic migrations.
-
-Production OpenAI extraction and review workflows are the next implementation milestones.
+The worker pipeline runs AI extraction (OpenAI/Gemini with a deterministic development fallback) with per-field confidences, line-item categorization, retrieval-augmented few-shot prompting, optional model tiering, business validation with reviewer-facing explanations, embedding persistence for similarity search, post-extraction anomaly detection, and confidence-gated auto-approval — all audited and backed by Alembic migrations.

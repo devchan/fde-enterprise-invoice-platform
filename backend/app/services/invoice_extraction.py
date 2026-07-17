@@ -7,7 +7,7 @@ import base64
 import json
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -19,10 +19,31 @@ from app.services.invoice_validation import (
     validate_invoice,
 )
 
+# Expense categories a line item may be classified into during extraction.
+# Kept as a closed set (Literal below) so strict structured output can enforce
+# it and downstream GL-coding/reporting can rely on stable values.
+LINE_ITEM_CATEGORIES = (
+    "goods",
+    "services",
+    "software",
+    "travel",
+    "utilities",
+    "professional_services",
+    "marketing",
+    "other",
+)
+
 PROMPT_NAME = "invoice_extraction"
-PROMPT_VERSION = "2026-07-10.v1"
+PROMPT_VERSION = "2026-07-17.v2"
 PROMPT_TEMPLATE = """Extract structured invoice fields from the invoice document.
 Return only JSON that matches the configured schema. If a field is unknown, use null.
+For each line item, classify it into one of the allowed expense categories; use "other" when unsure.
+Report confidence_score as your overall confidence in the extraction (0 to 1).
+Report field_confidences as your per-field confidence (0 to 1) for each named field;
+use null for a field you did not find in the document.
+When example invoices from the same supplier are provided, use them to resolve
+layout ambiguity (field placement, number formats), but never copy their values
+into fields you cannot see in this document.
 """
 
 
@@ -33,6 +54,21 @@ class ExtractedInvoiceLineItem(BaseModel):
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     line_total: Decimal | None = None
+    # Literal renders as a JSON-schema enum, so strict mode guarantees the model
+    # can only answer with a known category (or null when it cannot tell).
+    category: Literal[*LINE_ITEM_CATEGORIES] | None = None
+
+
+class ExtractedFieldConfidences(BaseModel):
+    # Per-field confidence in [0, 1]; null means "field not found in document".
+    # Fixed keys (rather than a free dict) keep OpenAI strict mode satisfiable.
+    model_config = ConfigDict(extra="forbid")
+
+    invoice_number: Decimal | None = Field(default=None, ge=0, le=1)
+    supplier_name: Decimal | None = Field(default=None, ge=0, le=1)
+    invoice_date: Decimal | None = Field(default=None, ge=0, le=1)
+    total_amount: Decimal | None = Field(default=None, ge=0, le=1)
+    currency: Decimal | None = Field(default=None, ge=0, le=1)
 
 
 class ExtractedInvoicePayload(BaseModel):
@@ -46,6 +82,7 @@ class ExtractedInvoicePayload(BaseModel):
     total_amount: Decimal | None = Field(default=None, ge=0)
     currency: str = Field(default="USD", min_length=3, max_length=3)
     confidence_score: Decimal = Field(ge=0, le=1)
+    field_confidences: ExtractedFieldConfidences | None = None
     line_items: list[ExtractedInvoiceLineItem] = Field(default_factory=list)
 
 
@@ -83,18 +120,33 @@ class DevelopmentInvoiceExtractor:
     # invoice's known fields so the rest of the pipeline can be exercised locally.
     model_name = "development-extractor"
 
-    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+    def extract(
+        self,
+        *,
+        invoice,
+        file_bytes: bytes,
+        mime_type: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+    ) -> ExtractionResult:
         payload = ExtractedInvoicePayload(
             invoice_number=invoice.invoice_number,
             total_amount=invoice.total_amount,
             currency=invoice.currency,
             confidence_score=Decimal("0.8000"),
+            # Mirror the real extractors' shape so confidence-driven routing and
+            # auto-approval logic is exercisable without a provider key.
+            field_confidences=ExtractedFieldConfidences(
+                invoice_number=Decimal("0.9000") if invoice.invoice_number else None,
+                total_amount=Decimal("0.9000") if invoice.total_amount is not None else None,
+                currency=Decimal("0.9000"),
+            ),
             line_items=[
                 ExtractedInvoiceLineItem(
                     description="Extracted invoice total",
                     quantity=Decimal("1"),
                     unit_price=invoice.total_amount,
                     line_total=invoice.total_amount,
+                    category="other",
                 )
             ]
             if invoice.total_amount is not None
@@ -108,7 +160,14 @@ class OpenAIInvoiceExtractor:
         self.api_key = api_key
         self.model_name = model_name
 
-    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+    def extract(
+        self,
+        *,
+        invoice,
+        file_bytes: bytes,
+        mime_type: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+    ) -> ExtractionResult:
         # Import lazily so the OpenAI SDK is only required when this extractor
         # is actually selected, keeping it an optional dependency.
         try:
@@ -141,12 +200,7 @@ class OpenAIInvoiceExtractor:
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": (
-                                    f"{PROMPT_TEMPLATE}\n"
-                                    f"Known invoice number: {invoice.invoice_number}\n"
-                                    f"Known amount: {invoice.total_amount}\n"
-                                    f"Known currency: {invoice.currency}"
-                                ),
+                                "text": _prompt_text(invoice=invoice, examples=examples),
                             },
                             document_content,
                         ],
@@ -197,7 +251,14 @@ class GeminiInvoiceExtractor:
         self.api_key = api_key
         self.model_name = model_name
 
-    def extract(self, *, invoice, file_bytes: bytes, mime_type: str | None = None) -> ExtractionResult:
+    def extract(
+        self,
+        *,
+        invoice,
+        file_bytes: bytes,
+        mime_type: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+    ) -> ExtractionResult:
         # Import lazily so the Gemini SDK is only required when this extractor is
         # actually selected, keeping it an optional dependency.
         try:
@@ -216,9 +277,7 @@ class GeminiInvoiceExtractor:
         prompt = (
             f"{PROMPT_TEMPLATE}\n"
             f"Return only JSON matching this schema:\n{json.dumps(extraction_json_schema())}\n"
-            f"Known invoice number: {invoice.invoice_number}\n"
-            f"Known amount: {invoice.total_amount}\n"
-            f"Known currency: {invoice.currency}"
+            f"{_prompt_known_fields_and_examples(invoice=invoice, examples=examples)}"
         )
         try:
             response = client.models.generate_content(
@@ -310,6 +369,137 @@ def build_invoice_extractor(provider: str | None = None):
             return _gemini_extractor()
 
     return DevelopmentInvoiceExtractor()
+
+
+def _prompt_known_fields_and_examples(*, invoice, examples: list[dict[str, Any]] | None) -> str:
+    parts = [
+        f"Known invoice number: {invoice.invoice_number}",
+        f"Known amount: {invoice.total_amount}",
+        f"Known currency: {invoice.currency}",
+    ]
+    if examples:
+        parts.append("Previously approved invoices from the same supplier (layout/format reference only):")
+        parts.append(json.dumps(examples, default=str))
+    return "\n".join(parts)
+
+
+def _prompt_text(*, invoice, examples: list[dict[str, Any]] | None) -> str:
+    # Static template first, per-invoice details last, so provider-side prompt
+    # caching can reuse the shared prefix across extractions.
+    return f"{PROMPT_TEMPLATE}\n{_prompt_known_fields_and_examples(invoice=invoice, examples=examples)}"
+
+
+def few_shot_examples(db, *, invoice, limit: int | None = None) -> list[dict[str, Any]]:
+    """Retrieval-augmented extraction: compact summaries of the supplier's most
+    recently approved invoices, used as few-shot examples in the prompt. Approved
+    invoices carry reviewer-corrected values, so they are ground truth for how
+    this supplier's layout should be read. Empty when the feature is disabled or
+    the invoice has no matched supplier yet."""
+    if not settings.extraction_few_shot_enabled or invoice.supplier_id is None:
+        return []
+
+    from sqlalchemy import select
+
+    from app.models.invoice import Invoice
+
+    limit = limit or settings.extraction_few_shot_examples
+    approved = db.scalars(
+        select(Invoice)
+        .where(
+            Invoice.organization_id == invoice.organization_id,
+            Invoice.supplier_id == invoice.supplier_id,
+            Invoice.id != invoice.id,
+            Invoice.status == "approved",
+        )
+        .order_by(Invoice.updated_at.desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "invoice_number": candidate.invoice_number,
+            "invoice_date": candidate.invoice_date.isoformat() if candidate.invoice_date else None,
+            "total_amount": str(candidate.total_amount) if candidate.total_amount is not None else None,
+            "currency": candidate.currency,
+            # Cap line items so a long historical invoice can't blow up the prompt.
+            "line_items": [
+                {"description": item.description, "category": item.category}
+                for item in candidate.line_items[:5]
+            ],
+        }
+        for candidate in approved
+    ]
+
+
+def run_invoice_extraction(
+    *,
+    invoice,
+    file_bytes: bytes,
+    mime_type: str | None = None,
+    provider: str | None = None,
+    examples: list[dict[str, Any]] | None = None,
+) -> ExtractionResult:
+    """Extraction entry point with optional model tiering: try the cheaper
+    tier-1 OpenAI model first and escalate to the primary model only when the
+    tier-1 confidence lands below the escalation bar. Usage/cost of both calls
+    is aggregated so spend accounting stays honest."""
+    primary = build_invoice_extractor(provider=provider)
+    tiering_applicable = (
+        settings.extraction_tiering_enabled
+        and isinstance(primary, OpenAIInvoiceExtractor)
+        and bool(settings.openai_extraction_tier1_model)
+        and settings.openai_extraction_tier1_model != primary.model_name
+    )
+    if not tiering_applicable:
+        return primary.extract(invoice=invoice, file_bytes=file_bytes, mime_type=mime_type, examples=examples)
+
+    tier1 = OpenAIInvoiceExtractor(
+        api_key=primary.api_key,
+        model_name=settings.openai_extraction_tier1_model,
+    )
+    first = tier1.extract(invoice=invoice, file_bytes=file_bytes, mime_type=mime_type, examples=examples)
+    if first.payload.confidence_score >= Decimal(settings.extraction_escalation_confidence):
+        return first
+
+    from app.core.metrics import EXTRACTION_ESCALATIONS
+
+    EXTRACTION_ESCALATIONS.inc()
+    second = primary.extract(invoice=invoice, file_bytes=file_bytes, mime_type=mime_type, examples=examples)
+    # Keep whichever attempt the model itself was more confident about, but
+    # charge the invoice for both calls.
+    chosen = second if second.payload.confidence_score >= first.payload.confidence_score else first
+    return ExtractionResult(
+        payload=chosen.payload,
+        model_name=chosen.model_name,
+        usage=_combined_usage(first.usage, second.usage),
+    )
+
+
+def _combined_usage(first: ExtractionUsage, second: ExtractionUsage) -> ExtractionUsage:
+    def add(a: int | None, b: int | None) -> int | None:
+        if a is None and b is None:
+            return None
+        return (a or 0) + (b or 0)
+
+    def add_cost(a: Decimal | None, b: Decimal | None) -> Decimal | None:
+        if a is None and b is None:
+            return None
+        return (a or Decimal("0")) + (b or Decimal("0"))
+
+    return ExtractionUsage(
+        input_tokens=add(first.input_tokens, second.input_tokens),
+        output_tokens=add(first.output_tokens, second.output_tokens),
+        estimated_cost=add_cost(first.estimated_cost, second.estimated_cost),
+    )
+
+
+def minimum_field_confidence(payload: ExtractedInvoicePayload) -> Decimal | None:
+    """Lowest reported per-field confidence, or None when the extractor did not
+    report any. Auto-approval gates on this so one weak field blocks touchless
+    processing even when the overall score looks fine."""
+    if payload.field_confidences is None:
+        return None
+    values = [value for value in payload.field_confidences.model_dump().values() if value is not None]
+    return min(values) if values else None
 
 
 # Validation keywords Pydantic emits but OpenAI's strict Structured Outputs mode
@@ -429,9 +619,19 @@ def persist_extraction_result(
                 quantity=item.quantity,
                 unit_price=item.unit_price,
                 line_total=item.line_total,
+                category=item.category,
             )
         )
 
+    field_confidences = (
+        {
+            name: value
+            for name, value in result.payload.field_confidences.model_dump().items()
+            if value is not None
+        }
+        if result.payload.field_confidences is not None
+        else None
+    )
     # Run business validation against the extracted values so the resulting
     # status reflects whether the invoice can auto-pass or needs human review.
     validation_results = validate_invoice(
@@ -440,6 +640,8 @@ def persist_extraction_result(
             supplier_found=invoice.supplier_id is not None,
             total_amount=result.payload.total_amount,
             extracted_confidence=result.payload.confidence_score,
+            field_confidences=field_confidences,
+            field_confidence_threshold=Decimal(settings.field_confidence_review_threshold),
             line_items=tuple(
                 InvoiceLineItemInput(
                     description=item.description,
@@ -451,7 +653,15 @@ def persist_extraction_result(
             ),
         )
     )
+    from app.services.validation_explanations import explain_validation_failures
+
+    # Failed rules get a plain-language explanation + suggested fix so reviewers
+    # see actionable guidance instead of just rule codes.
+    explanations = explain_validation_failures(
+        [item for item in validation_results if not item.passed]
+    )
     for validation_result in validation_results:
+        explanation, suggested_fix = explanations.get(id(validation_result), (None, None))
         db.add(
             InvoiceValidationResultModel(
                 invoice_id=invoice.id,
@@ -459,6 +669,8 @@ def persist_extraction_result(
                 severity=validation_result.severity,
                 message=validation_result.message,
                 passed=validation_result.passed,
+                explanation=explanation,
+                suggested_fix=suggested_fix,
             )
         )
 

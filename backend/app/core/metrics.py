@@ -32,6 +32,35 @@ HTTP_REQUEST_DURATION = Histogram(
 )
 
 
+# Touchless-processing KPI: invoices approved with no human involvement.
+INVOICES_AUTO_APPROVED = Counter(
+    "invoice_platform_invoices_auto_approved",
+    "Invoices auto-approved without human review.",
+)
+
+# Per-field reviewer corrections; the ratio of this to reviews measures
+# extraction accuracy per field over time.
+EXTRACTION_FIELD_CORRECTIONS = Counter(
+    "invoice_platform_extraction_field_corrections",
+    "Reviewer corrections applied to extracted invoice fields.",
+    ["field"],
+)
+
+# Model-tiering escalations: tier-1 extraction confidence fell below the bar
+# and the primary model was invoked as well.
+EXTRACTION_ESCALATIONS = Counter(
+    "invoice_platform_extraction_escalations",
+    "Extractions escalated from the tier-1 model to the primary model.",
+)
+
+# Anomaly detector hits, labelled by rule (amount_anomaly, near_duplicate_similarity).
+ANOMALIES_FLAGGED = Counter(
+    "invoice_platform_anomalies_flagged",
+    "Invoice anomaly flags raised after extraction.",
+    ["rule_code"],
+)
+
+
 def record_http_request(
     *,
     method: str,

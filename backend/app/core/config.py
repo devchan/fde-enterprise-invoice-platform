@@ -28,6 +28,41 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_embedding_cost_per_million_tokens: str = "0"
     invoice_similarity_result_limit: int = 5
+    # --- AI pipeline optimizations ---
+    # Touchless processing: invoices that pass every validation rule AND meet the
+    # confidence bars below skip human review entirely (VALIDATION_PASSED -> APPROVED).
+    auto_approval_enabled: bool = True
+    auto_approval_min_confidence: str = "0.92"
+    # Per-field confidences below this bar fail the field_confidence_low rule and
+    # route the invoice to review with the weak fields flagged.
+    field_confidence_review_threshold: str = "0.75"
+    # Retrieval-augmented extraction: include recent approved invoices from the
+    # same supplier as few-shot examples in the extraction prompt.
+    extraction_few_shot_enabled: bool = True
+    extraction_few_shot_examples: int = 2
+    # Anomaly detection runs after extraction and writes warning validation
+    # results; any hit demotes VALIDATION_PASSED back to REVIEW_REQUIRED.
+    anomaly_detection_enabled: bool = True
+    # Flag totals more than N standard deviations from the supplier's approved history.
+    anomaly_amount_zscore_threshold: str = "3.0"
+    # Minimum approved invoices for a supplier before the amount outlier rule applies.
+    anomaly_min_history: int = 3
+    # Embedding cosine similarity at/above which an invoice is flagged as a near-duplicate.
+    near_duplicate_similarity_threshold: str = "0.97"
+    # When enabled (and an OpenAI key is set), failed validation rules get an
+    # LLM-written explanation; otherwise deterministic templates are used.
+    validation_explanations_llm_enabled: bool = False
+    # Model tiering: try the cheaper tier-1 model first and only escalate to the
+    # primary extraction model when confidence lands below the escalation bar.
+    extraction_tiering_enabled: bool = False
+    openai_extraction_tier1_model: str = "gpt-4.1-mini"
+    extraction_escalation_confidence: str = "0.85"
+    # Reuse an existing embedding row when the exact source text was already
+    # embedded for this organization, skipping the provider call.
+    embedding_reuse_enabled: bool = True
+    # Downscale image uploads to this max dimension (px) before extraction to cut
+    # vision-token cost; 0 disables preprocessing.
+    extraction_image_max_dimension: int = 2048
     # Gemini is an alternative extraction provider (free tier). Its key being set
     # is what makes the "gemini" option selectable; empty means unavailable.
     gemini_api_key: str = ""

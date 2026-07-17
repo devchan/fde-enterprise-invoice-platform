@@ -187,6 +187,14 @@ def submit_invoice_review(
         _raise_duplicate_invoice_if_applicable(exc)
         raise
 
+    # Each corrected field is a ground-truth signal that extraction got that
+    # field wrong; the counter feeds the per-field accuracy dashboards.
+    if payload.corrected_fields:
+        from app.core.metrics import EXTRACTION_FIELD_CORRECTIONS
+
+        for field_name in payload.corrected_fields:
+            EXTRACTION_FIELD_CORRECTIONS.labels(field_name).inc()
+
     publish_event(
         invoice.organization_id,
         {

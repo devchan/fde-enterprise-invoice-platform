@@ -15,6 +15,9 @@ Test critical enterprise workflows first:
 - approval and rejection state transitions
 - reviewer field correction audit trail
 - tenant isolation
+- per-field confidence validation routing and auto-approval decisions (`test_ai_optimizations.py`)
+- anomaly detection (supplier amount outliers), validation explanation templates
+- natural-language search fallback parsing and image preprocessing
 
 Host-side browser smoke:
 

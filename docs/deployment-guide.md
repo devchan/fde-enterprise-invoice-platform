@@ -10,7 +10,8 @@ Before promoting a release:
 2. Build an immutable backend image from the exact commit being deployed.
 3. Run database migrations against staging or a migration validation database.
 4. Smoke-test `/health`, `/metrics`, invoice create/upload, queue processing, review approve/reject, and signed file download URL generation.
-5. Confirm operational dashboards show API latency, queue depth, failed jobs, validation failures, processing duration, and AI estimated cost.
+5. Confirm operational dashboards show API latency, queue depth, failed jobs, validation failures, processing duration, AI estimated cost, auto-approvals, anomaly flags, and reviewer field corrections.
+6. When enabling or tuning auto-approval in production, review the auto-approval rate and the `invoice.auto_approved` audit trail after the first representative batch before raising thresholds.
 
 ## CI Pipeline
 
@@ -108,6 +109,30 @@ AI extraction:
 | `OPENAI_EXTRACTION_MODEL` | Extraction model name. |
 | `OPENAI_INPUT_COST_PER_MILLION_TOKENS` | Cost estimate input rate used for persisted extraction cost. |
 | `OPENAI_OUTPUT_COST_PER_MILLION_TOKENS` | Cost estimate output rate used for persisted extraction cost. |
+| `OPENAI_EMBEDDING_MODEL` | Embedding model for similar-invoice search (must produce 1536-dimension vectors). |
+| `OPENAI_EMBEDDING_COST_PER_MILLION_TOKENS` | Cost estimate rate for persisted embedding cost. |
+| `GEMINI_API_KEY` | Enables the alternative Gemini extraction provider when set. |
+| `GEMINI_EXTRACTION_MODEL` | Gemini extraction model name. |
+
+AI pipeline optimizations:
+
+| Variable | Purpose |
+| --- | --- |
+| `AUTO_APPROVAL_ENABLED` | Enables confidence-gated auto-approval (touchless processing). Defaults to true. |
+| `AUTO_APPROVAL_MIN_CONFIDENCE` | Minimum overall and per-field confidence for auto-approval. Defaults to 0.92. |
+| `FIELD_CONFIDENCE_REVIEW_THRESHOLD` | Per-field confidence below this fails `field_confidence_low` and routes to review. Defaults to 0.75. |
+| `EXTRACTION_FEW_SHOT_ENABLED` | Injects recent approved same-supplier invoices as few-shot prompt examples. Defaults to true. |
+| `EXTRACTION_FEW_SHOT_EXAMPLES` | Number of few-shot examples per extraction. Defaults to 2. |
+| `ANOMALY_DETECTION_ENABLED` | Enables post-extraction anomaly detection. Defaults to true. |
+| `ANOMALY_AMOUNT_ZSCORE_THRESHOLD` | Z-score above which a supplier amount outlier is flagged. Defaults to 3.0. |
+| `ANOMALY_MIN_HISTORY` | Minimum approved same-supplier invoices before the amount outlier rule applies. Defaults to 3. |
+| `NEAR_DUPLICATE_SIMILARITY_THRESHOLD` | Embedding cosine similarity at/above which a near-duplicate is flagged. Defaults to 0.97. |
+| `VALIDATION_EXPLANATIONS_LLM_ENABLED` | Uses the LLM to write validation explanations instead of deterministic templates. Defaults to false. |
+| `EXTRACTION_TIERING_ENABLED` | Runs the cheaper tier-1 model first and escalates on low confidence. Defaults to false. |
+| `OPENAI_EXTRACTION_TIER1_MODEL` | Tier-1 (cheaper) extraction model used when tiering is enabled. |
+| `EXTRACTION_ESCALATION_CONFIDENCE` | Tier-1 confidence below this escalates to the primary model. Defaults to 0.85. |
+| `EMBEDDING_REUSE_ENABLED` | Reuses stored embeddings for identical source text instead of a provider call. Defaults to true. |
+| `EXTRACTION_IMAGE_MAX_DIMENSION` | Max image dimension (px) sent to the extractor; larger uploads are downscaled. 0 disables. Defaults to 2048. |
 
 Local-only ports:
 

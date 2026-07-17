@@ -302,6 +302,34 @@ Target behavior:
 
 - flag high-similarity pairs (e.g. >0.95) as potential duplicates directly in the review UI
 
+### `POST /api/v1/invoices/nl-search`
+
+Status: Implemented.
+
+Purpose: search invoices with a natural-language query ("approved acme invoices over $10k from june").
+
+Current behavior:
+
+- requires a valid bearer token for a database-backed user
+- accepts `{"query": string}` (1–500 characters)
+- translates the query into structured filters (status, supplier name, invoice number, min/max total, currency, invoice-date range, limit) via the configured LLM, falling back to a deterministic keyword parser when no OpenAI key is configured or the provider call fails
+- executes the filters as the same tenant-scoped SQL as `GET /api/v1/invoices` — the model only ever produces filter JSON, never SQL or data access
+- responds with the original query, the interpreted `filters` object, and the matching invoices in the detail-response shape
+- returns `invoice_search_query_invalid` for empty/untranslatable queries
+
+### `GET /api/v1/extraction/accuracy`
+
+Status: Implemented.
+
+Purpose: report per-field extraction accuracy per prompt version, derived from reviewer corrections (a corrected field is counted as an extraction miss).
+
+Current behavior:
+
+- requires a valid bearer token for a database-backed user; scoped to the caller's organization
+- pairs each review with the newest extraction created at/before it, attributing corrections to the prompt version and model that produced the value
+- tracks `invoice_number`, `invoice_date`, `total_amount`, `currency`, and `line_items` (any line-item edit counts once)
+- responds with, per prompt version: model names, reviewed-invoice count, and per-field reviewed/corrected counts plus an accuracy ratio
+
 ### `GET /api/v1/invoices/{invoice_id}`
 
 Status: Implemented for backend data retrieval with authenticated tenant enforcement.
@@ -314,6 +342,10 @@ Current behavior:
 - filters by the authenticated user's organization
 - returns `invoice_not_found` for invoices outside the user's organization
 - returns invoice metadata, files, extracted fields, validation results, and review state
+- line items include an AI-assigned expense `category` (nullable; one of goods, services, software, travel, utilities, professional_services, marketing, other)
+- validation results include `explanation` and `suggested_fix` for failed rules (nullable), covering business rules plus the AI signals `field_confidence_low`, `amount_anomaly`, and `near_duplicate_similarity`
+- the latest extraction's `extracted_payload.field_confidences` reports per-field confidences (0–1 or null) for invoice_number, supplier_name, invoice_date, total_amount, and currency
+- invoices may arrive already `approved` with no review rows when confidence-gated auto-approval fired (audit action `invoice.auto_approved`)
 
 Target behavior:
 

@@ -110,6 +110,15 @@ The platform should store:
 - estimated cost
 - raw response reference
 - structured extraction result
+- overall and per-field confidence scores
+- AI-assigned line-item expense categories
+
+Extraction cost/quality controls (implemented):
+
+- retrieval-augmented prompting: recent approved invoices from the same supplier are injected as few-shot layout examples, so reviewer corrections improve future extractions
+- optional model tiering: a cheaper model runs first and the primary model is invoked only when confidence is low, with both calls' cost persisted
+- image downscaling before the provider call for oversized uploads
+- embedding reuse when identical source text was already embedded
 
 ### Validation Engine
 
@@ -125,10 +134,17 @@ Example validation checks:
 - amount above approval threshold
 - supplier bank details mismatch
 - purchase order/reference mismatch
+- per-field extraction confidence below the review threshold
+- invoice total far outside the supplier's approved history (amount anomaly)
+- content nearly identical to another invoice (embedding near-duplicate)
+
+Each failed rule carries a plain-language explanation and suggested fix for the reviewer (deterministic templates by default, optional LLM-written text).
 
 ### Human Review
 
 Human review is required when extraction confidence is low, validation warnings are present, or approval policy requires manual action.
+
+Invoices that pass every validation rule, survive anomaly detection, and meet the auto-approval confidence bar (overall and per-field) are approved automatically (touchless processing) with a dedicated `invoice.auto_approved` audit action, so machine approvals remain distinguishable from human ones.
 
 Reviewers can:
 
@@ -150,8 +166,10 @@ Example events:
 - processing job created
 - extraction completed
 - validation failed
+- anomaly flagged
 - field corrected
 - invoice approved
+- invoice auto-approved
 - invoice rejected
 
 ### Observability
@@ -169,6 +187,10 @@ Key signals:
 - AI token cost
 - approval turnaround time
 - invoices requiring manual review
+- auto-approval (touchless) rate
+- anomaly flags by rule
+- reviewer field corrections (extraction misses) by field
+- model-tiering escalation count
 
 ## Invoice Lifecycle
 

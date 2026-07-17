@@ -36,13 +36,14 @@ The workflow below is the intended production workflow. It is not fully implemen
 2. The API validates the file and stores it in object storage.
 3. The API creates an invoice record with status `uploaded`.
 4. The API creates a processing job and pushes it to the queue.
-5. A worker downloads the file and extracts structured data using AI.
-6. The worker saves extraction output and confidence values.
-7. The validation engine checks supplier, totals, tax, duplicates, and thresholds.
-8. If safe, the invoice can move to approval-ready state.
-9. If risky or incomplete, the invoice moves to `review_required`.
-10. A reviewer corrects fields and approves or rejects the invoice.
-11. Every state change and field correction is recorded in the audit log.
+5. A worker downloads the file (downscaling oversized images) and extracts structured data using AI, using the supplier's approved invoice history as few-shot examples.
+6. The worker saves extraction output, overall and per-field confidence values, and line-item categories.
+7. The validation engine checks supplier, totals, duplicates, thresholds, and per-field confidence.
+8. Anomaly detection compares the invoice against the supplier's approved history and near-duplicate embeddings.
+9. If safe and confident enough, the invoice is auto-approved (touchless) with a dedicated audit action.
+10. If risky, incomplete, or below the confidence bar, the invoice moves to `review_required` with plain-language explanations per failed rule.
+11. A reviewer corrects fields and approves or rejects the invoice; corrections feed extraction-accuracy analytics.
+12. Every state change, anomaly flag, and field correction is recorded in the audit log.
 
 ## Key Enterprise Decisions
 
@@ -61,6 +62,14 @@ AI output should not be treated as automatically correct. The platform stores ex
 ### Version Prompts
 
 Prompt changes can alter extraction behavior. Prompt versions allow engineers to explain why older invoices were extracted differently from newer ones.
+
+### Gate Auto-Approval on Confidence and Anomaly Signals
+
+Touchless processing is only safe when it is conservative. An invoice auto-approves only when every validation rule passes, anomaly detection finds nothing, and both the overall and every per-field confidence meet the configured bar. One weak field blocks auto-approval even when the overall score looks fine, and machine approvals carry a dedicated audit action so they can always be separated from human decisions.
+
+### Learn from Reviewer Corrections
+
+Every human correction is a free ground-truth label. The platform counts corrected fields as extraction misses, reports per-field accuracy per prompt version, and feeds approved (corrected) invoices back into extraction prompts as supplier-specific few-shot examples — so review work measurably improves the AI over time.
 
 ### Make Audit Logging First-Class
 
@@ -156,5 +165,9 @@ Use this short explanation:
 - prompt/version tracking for AI behavior
 - human review for uncertain AI output
 - validation engine before approval
+- confidence- and anomaly-gated auto-approval with a distinct audit trail
+- extraction accuracy measured from reviewer corrections per prompt version
+- anomaly detection against supplier history and near-duplicate embeddings
+- AI cost controls (model tiering, embedding reuse, image downscaling)
 - retryable and observable processing jobs
 - deployment and rollback documentation

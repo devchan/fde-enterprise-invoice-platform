@@ -57,6 +57,18 @@ docker compose up -d --build
 
 Set the cost values to the current pricing for the selected model when you want estimated extraction cost persisted with each invoice extraction.
 
+`GEMINI_API_KEY` enables the alternative Gemini provider the same way; the upload form lets users pick between configured providers.
+
+## AI Pipeline Toggles
+
+The worker's AI optimizations (auto-approval, per-field confidence routing, few-shot extraction, anomaly detection, model tiering, embedding reuse, image downscaling) are all environment-driven with safe defaults — see the "AI pipeline optimizations" block in `.env.example` and the variable inventory in [the deployment guide](deployment-guide.md). All of them pass through `docker compose` from the host environment or `.env`, for example:
+
+```bash
+AUTO_APPROVAL_ENABLED=false docker compose up -d worker
+```
+
+The deterministic development extractor reports 0.8 overall confidence by design, which is below the default 0.92 auto-approval bar — so local invoices never auto-approve unless the threshold is lowered explicitly.
+
 ## Logs
 
 ```bash

@@ -34,7 +34,16 @@ export type InvoiceLineItem = {
   quantity: string | null;
   unit_price: string | null;
   line_total: string | null;
+  // AI-assigned expense category (goods, services, software, …); null when the
+  // extractor was unsure or the row predates categorization.
+  category: string | null;
 };
+
+// Per-field extraction confidences ("0".."1" as decimal strings) reported by the
+// extractor inside extracted_payload; null per field = "not found in document".
+export type FieldConfidences = Partial<
+  Record<"invoice_number" | "supplier_name" | "invoice_date" | "total_amount" | "currency", string | null>
+>;
 
 export type InvoiceDetail = {
   invoice_id: string;
@@ -67,6 +76,9 @@ export type InvoiceDetail = {
     severity: string;
     message: string;
     passed: boolean;
+    // Plain-language reviewer guidance, set only for failed rules.
+    explanation: string | null;
+    suggested_fix: string | null;
   }>;
   reviews: Array<{
     review_id: string;
@@ -76,6 +88,15 @@ export type InvoiceDetail = {
     corrected_fields: Record<string, unknown> | null;
     created_at: string;
   }>;
+};
+
+// Result of the natural-language search endpoint: the tenant-scoped invoices
+// plus the structured filters the query was interpreted as (echoed back so the
+// UI can show the user how their request was understood).
+export type InvoiceNLSearchResponse = {
+  query: string;
+  filters: Record<string, unknown>;
+  invoices: InvoiceDetail[];
 };
 
 export type SimilarInvoice = {

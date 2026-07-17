@@ -90,6 +90,7 @@ Current fields:
 - `quantity`
 - `unit_price`
 - `line_total`
+- `category` (nullable AI-assigned expense category from a closed set: goods, services, software, travel, utilities, professional_services, marketing, other)
 - timestamps
 
 ### `invoice_extractions`
@@ -103,16 +104,20 @@ Current fields:
 - `prompt_version_id`
 - `model_name`
 - `prompt_version`
-- `extracted_payload`
+- `extracted_payload` (includes `field_confidences`: per-field confidence 0–1 or null for invoice_number, supplier_name, invoice_date, total_amount, currency)
 - `confidence_score`
 - `input_tokens`
 - `output_tokens`
 - `estimated_cost`
 - timestamps
 
+Current implementation note:
+
+- when model tiering is enabled, `input_tokens`/`output_tokens`/`estimated_cost` aggregate both the tier-1 and escalated calls so spend accounting stays honest; `model_name` records the model whose payload was kept
+
 ### `invoice_validation_results`
 
-Purpose: validation rule outputs.
+Purpose: validation rule outputs, including post-extraction anomaly flags.
 
 Current fields:
 
@@ -122,7 +127,14 @@ Current fields:
 - `severity`
 - `message`
 - `passed`
+- `explanation` (nullable plain-language reviewer guidance for failed rules)
+- `suggested_fix` (nullable suggested action for failed rules)
 - timestamps
+
+Current implementation notes:
+
+- business rules are written during extraction persistence; anomaly rules (`amount_anomaly`, `near_duplicate_similarity`) are written by a best-effort post-extraction step
+- `field_confidence_low` rows flag individual extracted fields whose confidence fell below the review threshold
 
 ### `invoice_reviews`
 
@@ -170,6 +182,7 @@ Current fields:
 - `status`
 - `attempts`
 - `last_error`
+- `provider` (extraction provider chosen at upload; null lets the server decide)
 - timestamps
 
 Current implementation:
@@ -178,7 +191,7 @@ Current implementation:
 - upload publishes the job ID to Redis
 - worker execution updates job status and invoice status
 - failed jobs can be listed and manually reprocessed
-- automatic retry policy is not implemented yet
+- retryable failures are automatically requeued with exponential backoff up to `PROCESSING_JOB_MAX_ATTEMPTS`
 
 ### `prompt_versions`
 
@@ -201,7 +214,7 @@ Rules:
 
 Current implementation:
 
-- the worker creates or reuses prompt version `2026-07-10.v1`
+- the worker creates or reuses prompt version `2026-07-17.v2` (adds per-field confidences, line-item categories, and few-shot example handling; `2026-07-10.v1` rows remain for history)
 - extraction rows store both `prompt_version_id` and the prompt version string for compatibility
 
 ### `invoice_embeddings`
@@ -228,3 +241,5 @@ Current implementation:
 
 - written best-effort by the worker after the extraction commit (an embedding failure never fails a completed extraction)
 - queried by `GET /api/v1/invoices/{invoice_id}/similar` via pgvector cosine distance over an HNSW index
+- also consumed by post-extraction anomaly detection for near-duplicate flagging
+- when identical `source_text` was already embedded with the same model in the organization, the stored vector is reused instead of calling the provider (`EMBEDDING_REUSE_ENABLED`)

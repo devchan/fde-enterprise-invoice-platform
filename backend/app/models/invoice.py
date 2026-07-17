@@ -78,6 +78,9 @@ class InvoiceLineItem(TimestampMixin, Base):
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     line_total: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    # Expense category assigned by the extractor (see LINE_ITEM_CATEGORIES);
+    # null for rows written before categorization or when the model was unsure.
+    category: Mapped[str | None] = mapped_column(String(50))
 
     invoice: Mapped[Invoice] = relationship(back_populates="line_items")
 
@@ -115,6 +118,10 @@ class InvoiceValidationResult(TimestampMixin, Base):
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     passed: Mapped[bool] = mapped_column(nullable=False)
+    # Reviewer-facing guidance for failed rules: why it failed in plain language
+    # and what action resolves it. Null for passed rules and legacy rows.
+    explanation: Mapped[str | None] = mapped_column(Text)
+    suggested_fix: Mapped[str | None] = mapped_column(Text)
 
     invoice: Mapped[Invoice] = relationship(back_populates="validation_results")
 

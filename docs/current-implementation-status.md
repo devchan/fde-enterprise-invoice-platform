@@ -119,6 +119,17 @@ Implemented pure-Python services:
 - invoice embedding service with OpenAI `text-embedding-3-small` and a deterministic development fallback embedder
 - best-effort worker embedding persistence after extraction (failures logged, never fail the job)
 - pgvector-backed tenant-scoped similar-invoice search (cosine distance over an HNSW index)
+- per-field extraction confidences with a `field_confidence_low` validation rule
+- confidence-gated auto-approval (touchless processing) with `invoice.auto_approved` audit action and metric
+- post-extraction anomaly detection (supplier amount z-score outliers, embedding near-duplicates) that demotes
+  `validation_passed` invoices back to review
+- plain-language explanations and suggested fixes persisted on failed validation results
+- AI line-item expense categorization (closed category set enforced via structured output)
+- retrieval-augmented extraction using recent approved same-supplier invoices as few-shot examples
+- extraction accuracy analytics from reviewer corrections, reported per prompt version and field
+- natural-language invoice search translated to tenant-scoped filters (LLM with deterministic fallback parser)
+- optional extraction model tiering with escalation on low confidence and aggregated usage/cost
+- embedding reuse for identical source text and pre-extraction image downscaling
 
 ### Tests
 
