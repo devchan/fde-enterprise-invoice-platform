@@ -41,10 +41,17 @@ uvicorn app.main:app --reload
 - `GET /api/v1/invoices/{invoice_id}/similar` — pgvector similar-invoice search
 - `GET /api/v1/invoices/{invoice_id}/files/{file_id}/download-url` and signed `/download`
 - `GET /api/v1/extraction/providers` and `GET /api/v1/extraction/accuracy`
+- `POST /api/v1/assistant/ask` — read-only tool-calling AP assistant with tool trace
 - `GET /api/v1/processing-jobs/{processing_job_id}`, `GET /api/v1/processing-jobs/failed`, `POST /api/v1/processing-jobs/{processing_job_id}/reprocess`
 - `GET /api/v1/audit-logs`, user-admin endpoints under `/api/v1/users`
 - `GET /api/v1/events/stream` (Server-Sent Events), `GET /metrics`
 
 See [docs/api-contract.md](../docs/api-contract.md) for the full contract.
+
+An MCP server exposes the same capabilities to Model Context Protocol clients:
+
+```bash
+MCP_SERVICE_USER_EMAIL=ops@example.com python -m app.mcp.server
+```
 
 The worker pipeline runs AI extraction (OpenAI/Gemini with a deterministic development fallback) with per-field confidences, line-item categorization, retrieval-augmented few-shot prompting, optional model tiering, business validation with reviewer-facing explanations, embedding persistence for similarity search, post-extraction anomaly detection, and confidence-gated auto-approval — all audited and backed by Alembic migrations.

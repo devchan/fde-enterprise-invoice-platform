@@ -18,6 +18,7 @@ Test critical enterprise workflows first:
 - per-field confidence validation routing and auto-approval decisions (`test_ai_optimizations.py`)
 - anomaly detection (supplier amount outliers), validation explanation templates
 - natural-language search fallback parsing and image preprocessing
+- agent tool layer tenant/role enforcement, assistant fallback + API, MCP tool registry and service-user scoping (`test_agent_layer.py`)
 
 Host-side browser smoke:
 

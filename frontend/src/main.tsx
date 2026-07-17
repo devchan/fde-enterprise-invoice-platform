@@ -7,6 +7,15 @@ import { router } from "./app/router";
 import { ToastProvider } from "./app/ToastContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ThemeProvider } from "./components/common/theme-provider";
+// Fonts ship as npm packages (no CDN): Plex Sans carries UI text, Plex Mono
+// carries data (amounts, ids, statuses) and the eyebrow labels.
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-sans/700.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource/ibm-plex-mono/600.css";
 import "./styles.css";
 
 // Provider order matters: ErrorBoundary is outermost so it can catch failures from

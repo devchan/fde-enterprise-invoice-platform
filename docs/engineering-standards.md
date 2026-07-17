@@ -50,6 +50,8 @@ These standards define the bar for production-grade implementation.
 - LLMs may translate user intent into structured filters, but must never generate SQL or bypass tenant-scoped queries.
 - Every AI step in the worker pipeline beyond extraction itself (embedding, anomaly detection, explanations, auto-approval) must be best-effort: its failure must not fail a completed extraction.
 - Cost controls (model tiering, embedding reuse, input preprocessing) must never silently reduce accounting accuracy — aggregate and persist the real spend.
+- Agent surfaces (MCP, in-app assistants) must consume one shared tool layer that calls the service layer only, so tenant isolation and RBAC are inherited rather than reimplemented per transport.
+- Conversational agents get read-only tools by default; state-changing actions require an explicit human action or the acting user's own role, never the model's initiative.
 
 ## Testing Standards
 

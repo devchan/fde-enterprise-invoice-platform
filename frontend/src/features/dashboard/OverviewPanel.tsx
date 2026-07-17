@@ -22,8 +22,8 @@ export function OverviewPanel({
       <Card>
         <CardContent className="pt-6">
           <div>
-            <p className="text-sm font-medium text-primary">Operations cockpit</p>
-            <h2 className="mt-1 text-xl font-semibold">Enterprise invoice review</h2>
+            <p className="eyebrow">Operations cockpit</p>
+            <h2 className="mt-1.5 text-2xl font-bold tracking-tight">Enterprise invoice review</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               This React frontend is connected to the FastAPI backend and covers the first operational workflows:
               upload, review, recovery, audit, and user administration.
@@ -58,8 +58,8 @@ export function OverviewPanel({
           {stats.map((stat) => (
             <Card key={stat.label}>
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="mt-2 text-3xl font-semibold">{stat.value}</p>
+                <p className="eyebrow">{stat.label}</p>
+                <p className="num mt-2 text-3xl font-semibold tracking-tight">{stat.value}</p>
               </CardContent>
             </Card>
           ))}

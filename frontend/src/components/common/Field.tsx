@@ -25,7 +25,7 @@ export function Field({
       <Input
         aria-describedby={error ? errorId : showWarning ? warningId : undefined}
         aria-invalid={Boolean(error)}
-        className={cn(showWarning && "border-amber-500 focus-visible:ring-amber-500")}
+        className={cn(showWarning && "border-warn focus-visible:ring-warn")}
         id={id}
         {...props}
       />
@@ -35,7 +35,7 @@ export function Field({
         </p>
       ) : null}
       {showWarning ? (
-        <p className="text-xs text-amber-600 dark:text-amber-500" id={warningId}>
+        <p className="text-xs text-warn" id={warningId}>
           {warning}
         </p>
       ) : null}

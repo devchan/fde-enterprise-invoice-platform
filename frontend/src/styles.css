@@ -2,49 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens ported from the platform's brand reference
+   (docs/architecture-view.html): an "engineering blueprint" identity —
+   cool paper greys, ink text, an amber accent reserved for AI surfaces,
+   and a blueprint blue for the request-flow/neutral-active states.
+   Values are HSL triplets so Tailwind alpha modifiers (bg-primary/80) work. */
 :root {
-  --background: 210 20% 98%;
-  --foreground: 222 29% 14%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 29% 14%;
+  --background: 216 29% 97%; /* paper */
+  --foreground: 216 45% 9%; /* ink */
+  --card: 0 0% 100%; /* surface */
+  --card-foreground: 216 45% 9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222 29% 14%;
-  --muted: 210 18% 92%;
-  --muted-foreground: 218 11% 39%;
-  --secondary: 210 18% 92%;
-  --secondary-foreground: 222 29% 14%;
-  --accent: 210 18% 92%;
-  --accent-foreground: 222 29% 14%;
-  --border: 214 18% 84%;
-  --input: 214 18% 84%;
-  --primary: 174 72% 28%;
+  --popover-foreground: 216 45% 9%;
+  --muted: 213 33% 95%; /* surface-2 */
+  --muted-foreground: 215 16% 47%; /* slate */
+  --secondary: 213 33% 95%;
+  --secondary-foreground: 216 21% 29%; /* ink-2 */
+  --accent: 213 33% 95%;
+  --accent-foreground: 216 45% 9%;
+  --border: 215 27% 88%; /* line */
+  --border-strong: 215 23% 78%; /* line-strong */
+  --input: 215 23% 78%;
+  /* Amber is the brand accent AND the "AI touched this" signal. */
+  --primary: 28 75% 40%;
   --primary-foreground: 0 0% 100%;
-  --destructive: 0 70% 44%;
+  --destructive: 3 55% 45%; /* crit */
   --destructive-foreground: 0 0% 100%;
-  --ring: 174 72% 28%;
+  --ring: 28 75% 40%;
   --radius: 0.5rem;
+  /* Semantic status hues — separate from the accent by design. */
+  --good: 150 44% 33%;
+  --warn: 36 73% 38%;
+  --crit: 3 55% 45%;
+  --blueprint: 215 46% 45%;
+  --grid-line: 215 27% 88%;
 }
 
 .dark {
-  --background: 222 29% 8%;
-  --foreground: 210 20% 96%;
-  --card: 222 29% 11%;
-  --card-foreground: 210 20% 96%;
-  --popover: 222 29% 11%;
-  --popover-foreground: 210 20% 96%;
-  --muted: 218 15% 18%;
-  --muted-foreground: 214 12% 65%;
-  --secondary: 218 15% 18%;
-  --secondary-foreground: 210 20% 96%;
-  --accent: 218 15% 22%;
-  --accent-foreground: 210 20% 96%;
-  --border: 217 15% 24%;
-  --input: 217 15% 24%;
-  --primary: 174 60% 45%;
-  --primary-foreground: 222 29% 10%;
-  --destructive: 0 65% 55%;
-  --destructive-foreground: 210 20% 96%;
-  --ring: 174 60% 45%;
+  --background: 217 47% 7%;
+  --foreground: 214 41% 93%;
+  --card: 217 40% 11%;
+  --card-foreground: 214 41% 93%;
+  --popover: 217 40% 11%;
+  --popover-foreground: 214 41% 93%;
+  --muted: 214 36% 14%;
+  --muted-foreground: 213 17% 59%;
+  --secondary: 214 36% 14%;
+  --secondary-foreground: 213 22% 74%;
+  --accent: 214 36% 14%;
+  --accent-foreground: 214 41% 93%;
+  --border: 210 31% 19%;
+  --border-strong: 211 27% 28%;
+  --input: 211 27% 28%;
+  --primary: 36 71% 58%;
+  --primary-foreground: 32 39% 6%;
+  --destructive: 6 68% 62%;
+  --destructive-foreground: 217 47% 7%;
+  --ring: 36 71% 58%;
+  --good: 147 38% 50%;
+  --warn: 38 63% 56%;
+  --crit: 6 68% 62%;
+  --blueprint: 215 56% 64%;
+  --grid-line: 210 31% 15%;
 }
 
 * {
@@ -53,10 +72,26 @@
 
 body {
   margin: 0;
-  background: hsl(var(--background));
+  background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  /* The arch-view's 34px grid paper, faded so cards sit cleanly above it. */
+  background-image:
+    linear-gradient(hsl(var(--grid-line) / 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--grid-line) / 0.55) 1px, transparent 1px);
+  background-size: 34px 34px;
+  background-position: -1px -1px;
+  background-attachment: fixed;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
 button,
@@ -75,6 +110,113 @@ button:disabled {
   opacity: 0.55;
 }
 
+/* One visible, consistent focus treatment everywhere keyboard focus lands. */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Quiet, consistent scrollbars so scrollable tables read as part of the
+   surface instead of a chrome-grey default bar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border-strong)) transparent;
+}
+
+*::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-strong));
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Uppercase mono section label — the arch view's "sec-head" idiom. */
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Data rendered as data: invoice numbers, amounts, ids, timestamps. */
+.num {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Brand dot with the soft glow ring, as in the arch-view topbar. */
+.brand-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
+  flex: none;
+}
+
+/* Status pill: mono lowercase label, tinted ground + border, one leading dot.
+   Tone is set with --pill-c so one rule serves every status. */
+.status-pill {
+  --pill-c: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid hsl(var(--pill-c) / 0.38);
+  border-radius: 999px;
+  background: hsl(var(--pill-c) / 0.1);
+  color: hsl(var(--pill-c));
+  padding: 2px 9px;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--pill-c));
+  flex: none;
+}
+
+.status-pill-good {
+  --pill-c: var(--good);
+}
+.status-pill-warn {
+  --pill-c: var(--warn);
+}
+.status-pill-crit {
+  --pill-c: var(--crit);
+}
+.status-pill-blueprint {
+  --pill-c: var(--blueprint);
+}
+.status-pill-accent {
+  --pill-c: var(--primary);
+}
+
 .session-chip {
   max-width: min(100%, 34rem);
   overflow-wrap: anywhere;
@@ -82,27 +224,31 @@ button:disabled {
 
 .nav-button {
   display: flex;
-  min-height: 2.75rem;
+  min-height: 2.6rem;
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: transparent;
   padding: 0 0.75rem;
-  color: hsl(var(--foreground));
+  color: hsl(var(--secondary-foreground));
   text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .nav-button:hover {
   background: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .nav-button-active {
-  border-color: hsl(var(--primary) / 0.28);
+  border-color: hsl(var(--primary) / 0.32);
   background: hsl(var(--primary) / 0.09);
   color: hsl(var(--primary));
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .nav-lock {
@@ -117,20 +263,23 @@ button:disabled {
 
 .list-row {
   display: flex;
-  min-height: 3.25rem;
+  min-height: 3rem;
   width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border: 1px solid hsl(var(--border));
-  border-radius: 6px;
+  border-radius: 7px;
   background: hsl(var(--card));
-  padding: 0.75rem;
+  padding: 0.6rem 0.75rem;
   color: hsl(var(--foreground));
+  font-size: 0.8125rem;
+  transition: border-color 150ms ease;
 }
 
 button.list-row:hover {
-  border-color: hsl(var(--primary));
+  border-color: hsl(var(--border-strong));
+  background: hsl(var(--muted) / 0.5);
 }
 
 .toast {
@@ -139,10 +288,12 @@ button.list-row:hover {
   justify-content: space-between;
   gap: 1rem;
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: 1px solid hsl(var(--toast-c) / 0.4);
+  background: hsl(var(--toast-c) / 0.1);
+  color: hsl(var(--toast-c));
   padding: 0.8rem 1rem;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .toast button {
@@ -153,39 +304,15 @@ button.list-row:hover {
 }
 
 .toast-ok {
-  border-color: hsl(151 58% 76%);
-  background: hsl(151 58% 94%);
-  color: hsl(151 68% 24%);
+  --toast-c: var(--good);
 }
 
 .toast-error {
-  border-color: hsl(0 70% 82%);
-  background: hsl(0 86% 97%);
-  color: hsl(var(--destructive));
+  --toast-c: var(--crit);
 }
 
 .toast-info {
-  border-color: hsl(212 72% 82%);
-  background: hsl(212 78% 96%);
-  color: hsl(212 74% 31%);
-}
-
-.dark .toast-ok {
-  border-color: hsl(151 40% 30%);
-  background: hsl(151 40% 14%);
-  color: hsl(151 58% 76%);
-}
-
-.dark .toast-error {
-  border-color: hsl(0 45% 34%);
-  background: hsl(0 45% 16%);
-  color: hsl(0 70% 82%);
-}
-
-.dark .toast-info {
-  border-color: hsl(212 45% 34%);
-  background: hsl(212 45% 16%);
-  color: hsl(212 72% 82%);
+  --toast-c: var(--blueprint);
 }
 
 @layer base {

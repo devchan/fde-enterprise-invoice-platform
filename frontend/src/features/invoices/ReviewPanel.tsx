@@ -13,8 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import type { FieldConfidences, InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
+import type { AssistantAskResponse, FieldConfidences, InvoiceDetail, InvoiceFile, SimilarInvoice } from "../../domain/types";
 import { formatDate } from "../../utils/format";
+import { AssistantPanel } from "./AssistantPanel";
 
 // Below this per-field extraction confidence the review form highlights the
 // field so the reviewer verifies it against the document (matches the server's
@@ -45,11 +46,14 @@ function confidenceWarning(confidences: FieldConfidences, field: keyof FieldConf
 export function ReviewPanel({
   aiFilters,
   aiSearchActive,
+  assistantAnswer,
   invoices,
   isAiSearching,
   isApproving,
+  isAsking,
   isRejecting,
   onAiSearch,
+  onAsk,
   onBulkReview,
   onClearAiSearch,
   onClearSelection,
@@ -64,11 +68,14 @@ export function ReviewPanel({
 }: {
   aiFilters: Record<string, unknown> | null;
   aiSearchActive: boolean;
+  assistantAnswer: AssistantAskResponse | null;
   invoices: InvoiceDetail[];
   isAiSearching: boolean;
   isApproving: boolean;
+  isAsking: boolean;
   isRejecting: boolean;
   onAiSearch: (query: string) => void;
+  onAsk: (question: string) => void;
   onBulkReview: (decision: "approve" | "reject", invoices: InvoiceDetail[]) => void;
   onClearAiSearch: () => void;
   onClearSelection: () => void;
@@ -93,7 +100,7 @@ export function ReviewPanel({
       header: "Invoice",
       cell: ({ row }) => (
         <button
-          className="font-medium text-primary"
+          className="num font-medium text-primary underline-offset-2 hover:underline"
           onClick={() => onSelect(row.original.invoice_id)}
           type="button"
         >
@@ -104,17 +111,20 @@ export function ReviewPanel({
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <StatusPill label={row.original.status} tone={row.original.status === "failed" ? "error" : "info"} />,
+      cell: ({ row }) => <StatusPill label={row.original.status} />,
     },
     {
       accessorKey: "created_at",
       header: "Created",
-      cell: ({ row }) => <span className="text-muted-foreground">{formatDate(row.original.created_at)}</span>,
+      cell: ({ row }) => <span className="num text-xs text-muted-foreground">{formatDate(row.original.created_at)}</span>,
     },
   ];
 
   return (
     <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
+      {/* Left rail: the invoice list plus the assistant ask-box, stacked so the
+          assistant stays reachable while browsing or reviewing. */}
+      <div className="space-y-4">
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -147,12 +157,12 @@ export function ReviewPanel({
               <span>Interpreted as:</span>
               {aiFilters && Object.keys(aiFilters).length > 0 ? (
                 Object.entries(aiFilters).map(([key, value]) => (
-                  <Badge key={key} variant="secondary">
+                  <Badge key={key} variant="ai">
                     {key}={String(value)}
                   </Badge>
                 ))
               ) : (
-                <Badge variant="secondary">no filters</Badge>
+                <Badge variant="ai">no filters</Badge>
               )}
               <button
                 className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -175,7 +185,7 @@ export function ReviewPanel({
               ]}
               columns={invoiceColumns}
               data={invoices}
-              emptyMessage="No invoices loaded."
+              emptyMessage="No invoices yet — upload one to start the pipeline."
               enableColumnVisibility
               enableExport={{ filename: "invoices.csv" }}
               enableRowSelection
@@ -188,8 +198,19 @@ export function ReviewPanel({
         </CardContent>
       </Card>
 
+      <AssistantPanel
+        isAsking={isAsking}
+        latest={assistantAnswer}
+        onAsk={onAsk}
+        selectedInvoice={selectedInvoice}
+      />
+      </div>
+
       {!selectedInvoice ? (
-        <EmptyPanel title="Select an invoice to review." />
+        <EmptyPanel
+          hint="Pick an invoice from the list to see its extracted fields, validation results, and similar invoices."
+          title="No invoice selected"
+        />
       ) : (
         <Card>
           <CardHeader>
@@ -202,21 +223,21 @@ export function ReviewPanel({
             </nav>
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
-                <CardTitle className="text-xl">{selectedInvoice.invoice_number}</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {selectedInvoice.currency} {selectedInvoice.total_amount || "0.00"} · {selectedInvoice.status}
+                <CardTitle className="num text-xl tracking-tight">{selectedInvoice.invoice_number}</CardTitle>
+                <p className="num mt-1 text-sm text-muted-foreground">
+                  {selectedInvoice.currency} {selectedInvoice.total_amount || "0.00"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 {/* An approved invoice with no review rows can only have been
                     approved by the confidence-gated auto-approval step. */}
                 {selectedInvoice.status === "approved" && selectedInvoice.reviews.length === 0 ? (
-                  <Badge variant="success">
+                  <Badge variant="ai">
                     <Sparkles className="mr-1 h-3 w-3" />
                     Auto-approved by AI
                   </Badge>
                 ) : null}
-                <StatusPill label={selectedInvoice.status} tone={selectedInvoice.status === "approved" ? "ok" : selectedInvoice.status === "failed" ? "error" : "info"} />
+                <StatusPill label={selectedInvoice.status} />
               </div>
             </div>
           </CardHeader>
@@ -346,11 +367,13 @@ function DetailSections({
         {invoice.validation_results.map((result) => (
           <div className="py-1" key={result.validation_result_id}>
             <div className="list-row">
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 font-mono text-xs">
                 {result.rule_code}
-                {ANOMALY_RULE_CODES.has(result.rule_code) ? <StatusPill label="anomaly" tone="error" /> : null}
+                {ANOMALY_RULE_CODES.has(result.rule_code) ? <StatusPill label="anomaly" tone="accent" /> : null}
               </span>
-              <span className={result.passed ? "text-primary" : "text-destructive"}>{result.passed ? "passed" : result.severity}</span>
+              <span className={`font-mono text-xs ${result.passed ? "text-good" : result.severity === "warning" ? "text-warn" : "text-crit"}`}>
+                {result.passed ? "passed" : result.severity}
+              </span>
             </div>
             {/* AI/template-written reviewer guidance, present only on failed rules. */}
             {!result.passed && result.explanation ? (
@@ -382,9 +405,9 @@ function DetailSections({
             <span className="flex items-center gap-2">
               {item.description}
               {/* AI-assigned expense category; absent for legacy rows or when the model was unsure. */}
-              {item.category ? <Badge variant="secondary">{item.category.replace(/_/g, " ")}</Badge> : null}
+              {item.category ? <Badge variant="ai">{item.category.replace(/_/g, " ")}</Badge> : null}
             </span>
-            <span>{item.line_total || "-"}</span>
+            <span className="num">{item.line_total || "—"}</span>
           </div>
         ))}
       </DataBlock>
@@ -398,15 +421,15 @@ function DetailSections({
         {similarInvoices.map((similar) => (
           <button className="list-row" key={similar.invoice_id} onClick={() => onSelect(similar.invoice_id)} type="button">
             <span className="flex items-center gap-2">
-              <span className="font-medium text-primary">{similar.invoice_number}</span>
-              <span className="text-muted-foreground">
+              <span className="num font-medium text-primary">{similar.invoice_number}</span>
+              <span className="num text-muted-foreground">
                 {similar.currency} {similar.total_amount || "0.00"}
               </span>
               {similar.similarity >= DUPLICATE_SIMILARITY_THRESHOLD ? (
-                <StatusPill label="possible duplicate" tone="error" />
+                <StatusPill label="possible duplicate" tone="accent" />
               ) : null}
             </span>
-            <span className="text-muted-foreground">{Math.round(similar.similarity * 100)}% match</span>
+            <span className="num text-xs text-muted-foreground">{Math.round(similar.similarity * 100)}% match</span>
           </button>
         ))}
       </DataBlock>

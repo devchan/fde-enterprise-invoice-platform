@@ -69,6 +69,17 @@ AUTO_APPROVAL_ENABLED=false docker compose up -d worker
 
 The deterministic development extractor reports 0.8 overall confidence by design, which is below the default 0.92 auto-approval bar — so local invoices never auto-approve unless the threshold is lowered explicitly.
 
+## MCP Server
+
+Expose the platform's tools to an MCP client (Claude Desktop/Code, IDE agents) over stdio, acting as an existing platform user:
+
+```bash
+docker compose exec -e MCP_SERVICE_USER_EMAIL=admin@example.com backend \
+  sh -c "cd /app/backend && python -m app.mcp.server"
+```
+
+All tool calls are scoped to that user's organization and role. The in-app AP assistant needs no separate process — `POST /api/v1/assistant/ask` runs inside the API as the authenticated caller (deterministic fallback answers without an OpenAI key).
+
 ## Logs
 
 ```bash

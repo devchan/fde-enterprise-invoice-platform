@@ -140,6 +140,15 @@ Example validation checks:
 
 Each failed rule carries a plain-language explanation and suggested fix for the reviewer (deterministic templates by default, optional LLM-written text).
 
+### Agent Layer
+
+Two AI-agent surfaces sit on one shared, transport-agnostic tool layer that calls the service layer only — so tenant isolation and RBAC are inherited, never reimplemented:
+
+- an MCP (Model Context Protocol) server exposes search, invoice detail, similar-invoice, audit-trail, accuracy, failed-job, and reprocess tools to any MCP client, acting as a configured service user
+- an in-product AP assistant (`POST /api/v1/assistant/ask`) chains read-only tool calls to answer operational questions, returning the tool trace with every answer
+
+The assistant deliberately has no write tools; state-changing actions stay behind explicit human clicks in the cockpit.
+
 ### Human Review
 
 Human review is required when extraction confidence is low, validation warnings are present, or approval policy requires manual action.

@@ -130,6 +130,10 @@ Implemented pure-Python services:
 - natural-language invoice search translated to tenant-scoped filters (LLM with deterministic fallback parser)
 - optional extraction model tiering with escalation on low confidence and aggregated usage/cost
 - embedding reuse for identical source text and pre-extraction image downscaling
+- shared AI tool layer with tenant scoping and role enforcement (search, detail, similar, audit trail, accuracy, failed jobs, reprocess)
+- stdio MCP server exposing the tool layer to Model Context Protocol clients as a configured service user
+- read-only AP assistant agent (OpenAI tool-calling loop with capped iterations, deterministic keyless fallback, tool-call trace in responses)
+- cockpit Assistant panel on the review screen (question input, tool-trace chips, one-click "why is this invoice stuck?" quick question)
 
 ### Tests
 

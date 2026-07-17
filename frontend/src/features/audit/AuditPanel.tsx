@@ -14,13 +14,13 @@ const auditColumns: ColumnDef<AuditLog>[] = [
   {
     accessorKey: "action",
     header: "Action",
-    cell: ({ row }) => <span className="font-medium">{row.original.action}</span>,
+    cell: ({ row }) => <span className="font-mono text-xs font-medium">{row.original.action}</span>,
   },
   {
     accessorKey: "entity_type",
     header: "Entity",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">
+      <span className="num text-xs text-muted-foreground">
         {row.original.entity_type} · {shortId(row.original.entity_id)}
       </span>
     ),
@@ -28,12 +28,12 @@ const auditColumns: ColumnDef<AuditLog>[] = [
   {
     accessorKey: "actor_user_id",
     header: "Actor",
-    cell: ({ row }) => <span className="text-muted-foreground">{shortId(row.original.actor_user_id)}</span>,
+    cell: ({ row }) => <span className="num text-xs text-muted-foreground">{shortId(row.original.actor_user_id)}</span>,
   },
   {
     accessorKey: "created_at",
     header: "Created",
-    cell: ({ row }) => <span className="text-muted-foreground">{formatDate(row.original.created_at)}</span>,
+    cell: ({ row }) => <span className="num text-xs text-muted-foreground">{formatDate(row.original.created_at)}</span>,
   },
 ];
 
@@ -65,7 +65,7 @@ export function AuditPanel({
           <DataTable
             columns={auditColumns}
             data={logs}
-            emptyMessage="No audit logs found."
+            emptyMessage="No audit events match these filters — clear a filter or widen the search."
             enableColumnVisibility
             enableExport={{ filename: "audit-logs.csv" }}
             getRowId={(log) => log.audit_log_id}

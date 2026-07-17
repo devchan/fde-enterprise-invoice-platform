@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.api.assistant import router as assistant_router
 from app.api.audit_logs import router as audit_logs_router
 from app.api.auth import router as auth_router
 from app.api.events import router as events_router
@@ -17,6 +18,7 @@ api_router = APIRouter()
 # paths; all business endpoints live under the /api/v1 version prefix.
 api_router.include_router(health_router)
 api_router.include_router(metrics_router)
+api_router.include_router(assistant_router, prefix="/api/v1")
 api_router.include_router(auth_router, prefix="/api/v1")
 api_router.include_router(audit_logs_router, prefix="/api/v1")
 api_router.include_router(events_router, prefix="/api/v1")

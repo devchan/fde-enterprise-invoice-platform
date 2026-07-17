@@ -3,6 +3,7 @@ import { z } from "zod";
 import { useSession } from "../app/useSession";
 import { AccessRequiredPanel, SignInRequiredPanel } from "../components/common/AccessPanels";
 import { emptyToUndefined } from "../utils/form";
+import { useAskAssistantMutation } from "../queries/assistant";
 import {
   useBulkReviewInvoicesMutation,
   useInvoiceQuery,
@@ -38,6 +39,7 @@ function ReviewRoute() {
   const bulkReviewMutation = useBulkReviewInvoicesMutation(session);
   const openFileMutation = useOpenInvoiceFileMutation(session);
   const nlSearchMutation = useNLSearchInvoicesMutation(session);
+  const askAssistantMutation = useAskAssistantMutation(session);
 
   if (!session) return <SignInRequiredPanel title="Sign in to review invoices." />;
   if (!userCanReview) return <AccessRequiredPanel title="Review requires admin or reviewer access." />;
@@ -51,8 +53,11 @@ function ReviewRoute() {
     <ReviewPanel
       aiFilters={aiSearchResult?.filters ?? null}
       aiSearchActive={aiSearchResult !== null}
+      assistantAnswer={askAssistantMutation.data ?? null}
       isAiSearching={nlSearchMutation.isPending}
+      isAsking={askAssistantMutation.isPending}
       onAiSearch={(query) => nlSearchMutation.mutate(query)}
+      onAsk={(question) => askAssistantMutation.mutate(question)}
       onClearAiSearch={() => nlSearchMutation.reset()}
       invoices={aiSearchResult?.invoices ?? invoicesQuery.data ?? []}
       isApproving={reviewMutation.isPending && reviewMutation.variables?.decision === "approve"}

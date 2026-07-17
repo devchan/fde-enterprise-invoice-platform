@@ -22,10 +22,21 @@ export const Route = createRootRoute({
   component: RootComponent,
 });
 
+// Topbar brand block: amber dot with the soft glow ring + mono wordmark,
+// mirroring the architecture view's identity.
+function Brand() {
+  return (
+    <span className="flex items-center gap-2.5 font-mono text-[13px] tracking-wide text-foreground">
+      <span className="brand-dot" aria-hidden="true" />
+      FDE&nbsp;·&nbsp;INVOICE&nbsp;OPS
+    </span>
+  );
+}
+
 function RootComponent() {
   useSessionExpiredHandler();
   const { health } = useHealth();
-  const { session } = useSession();
+  const { session, sessionLoading } = useSession();
   const { connected: liveUpdatesConnected } = useRealtimeEvents(session);
   const { toast, setToast } = useToast();
   const loginMutation = useLoginMutation();
@@ -33,8 +44,48 @@ function RootComponent() {
   const changePasswordMutation = useChangeOwnPasswordMutation();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Signed out: the login screen is the product's one editorial moment —
+  // the grid-paper canvas, the brand mark, and a single centered card.
+  if (!session && !sessionLoading) {
+    return (
+      <main className="flex min-h-screen flex-col">
+        <header className="border-b border-border bg-card/85 backdrop-blur-sm">
+          <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
+            <Brand />
+            <ModeToggle />
+          </div>
+        </header>
+        <div className="flex flex-1 items-center justify-center px-4 py-16">
+          <div className="w-full max-w-sm">
+            <p className="eyebrow">Enterprise AI Invoice Processing</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">Reviewer Cockpit</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Upload invoices, review AI-extracted data, and keep every decision audited.
+            </p>
+            {toast ? (
+              <div className="mt-4">
+                <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />
+              </div>
+            ) : null}
+            <Card className="mt-6 shadow-sm">
+              <CardContent className="p-6">
+                <SignInForm
+                  busy={loginMutation.isPending}
+                  onSubmit={(credentials) => loginMutation.mutate(credentials)}
+                />
+              </CardContent>
+            </Card>
+            <div className="mt-4">
+              <StatusPill label="API" tone={health === "ok" ? "good" : health === "error" ? "crit" : "blueprint"} />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen">
       <CommandPalette onOpenChange={setCommandPaletteOpen} open={commandPaletteOpen} />
       <a
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
@@ -42,12 +93,9 @@ function RootComponent() {
       >
         Skip to main content
       </a>
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">FDE Invoice Platform</p>
-            <h1 className="text-2xl font-semibold tracking-normal">Reviewer Cockpit</h1>
-          </div>
+      <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-sm">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+          <Brand />
           <div className="flex flex-wrap items-center gap-2">
             <Button
               className="text-muted-foreground"
@@ -57,31 +105,31 @@ function RootComponent() {
               variant="outline"
             >
               <Search className="h-4 w-4" />
-              Search
-              <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="ml-1 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
             </Button>
-            <StatusPill label="API" tone={health === "ok" ? "ok" : health === "error" ? "error" : "info"} />
+            <StatusPill label="API" tone={health === "ok" ? "good" : health === "error" ? "crit" : "blueprint"} />
             {session ? (
               <span
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground"
                 title={liveUpdatesConnected ? "Live updates connected" : "Live updates unavailable — reconnecting"}
               >
                 <span
-                  className={`h-2 w-2 rounded-full ${liveUpdatesConnected ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+                  className={`h-2 w-2 rounded-full ${liveUpdatesConnected ? "bg-good" : "bg-muted-foreground/40"}`}
                   aria-hidden="true"
                 />
-                Live
+                live
               </span>
             ) : null}
             <ModeToggle />
             {session ? (
               <>
-                <span className="session-chip rounded border border-border px-3 py-2 text-sm text-muted-foreground">
+                <span className="session-chip hidden rounded-full border border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground md:inline">
                   {session.email} · {session.role}
                 </span>
-                <Button onClick={() => logoutMutation.mutate()} type="button" variant="outline">
+                <Button onClick={() => logoutMutation.mutate()} size="sm" type="button" variant="outline">
                   <LogOut className="h-4 w-4" />
-                  Sign out
+                  <span className="hidden sm:inline">Sign out</span>
                 </Button>
               </>
             ) : null}
@@ -89,10 +137,11 @@ function RootComponent() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[280px_1fr]">
-        <Card className="h-max min-w-0">
-          <CardContent className="p-4">
-            <nav className="space-y-1 text-sm" aria-label="Primary">
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_1fr]">
+        <Card className="h-max min-w-0 shadow-sm">
+          <CardContent className="p-3">
+            <p className="eyebrow px-3 pb-2 pt-1.5">Workspace</p>
+            <nav className="space-y-0.5 text-sm" aria-label="Primary">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const locked = !canAccessTab(session, tab.key);
@@ -103,14 +152,14 @@ function RootComponent() {
                     key={tab.key}
                     to={tab.path}
                   >
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2.5">
                       <Icon className="h-4 w-4" aria-hidden="true" />
                       {tab.label}
                     </span>
                     {locked ? (
                       <Lock className="nav-lock h-3.5 w-3.5" aria-label="Access restricted" />
                     ) : (
-                      <span className="text-muted-foreground" aria-hidden="true">
+                      <span className="text-muted-foreground/60" aria-hidden="true">
                         ›
                       </span>
                     )}
@@ -119,11 +168,9 @@ function RootComponent() {
               })}
             </nav>
 
-            {!session ? (
-              <SignInForm busy={loginMutation.isPending} onSubmit={(credentials) => loginMutation.mutate(credentials)} />
-            ) : (
+            {session ? (
               <form
-                className="mt-5 space-y-3 border-t border-border pt-5"
+                className="mt-4 space-y-3 border-t border-border px-3 pb-1.5 pt-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const formElement = event.currentTarget;
@@ -138,7 +185,7 @@ function RootComponent() {
                   );
                 }}
               >
-                <h2 className="text-sm font-semibold">Account</h2>
+                <p className="eyebrow">Account</p>
                 <Field label="Current password" name="current_password" type="password" required />
                 <Field label="New password" name="new_password" type="password" minLength={12} required />
                 <Button className="w-full" disabled={changePasswordMutation.isPending} type="submit" variant="outline">
@@ -150,7 +197,7 @@ function RootComponent() {
                   Change password
                 </Button>
               </form>
-            )}
+            ) : null}
           </CardContent>
         </Card>
 

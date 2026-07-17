@@ -30,7 +30,7 @@ export function SignInForm({
   });
 
   return (
-    <form className="mt-5 space-y-3 border-t border-border pt-5" onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
       <Field
         error={errors.email?.message}
         label="Email"

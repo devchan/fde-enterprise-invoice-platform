@@ -307,3 +307,31 @@ Remaining hardening before Phase 9 is production-complete:
 - tune `AUTO_APPROVAL_MIN_CONFIDENCE`, anomaly z-score, and near-duplicate thresholds against representative production invoices
 - run live-provider verification of per-field confidences and categories with real invoice fixtures
 - consider reviewer feedback capture on explanation quality if LLM-written explanations are enabled
+
+## Phase 10: Agent Layer (MCP + Tool Calling)
+
+Goal: expose the platform's capabilities to AI agents — external (MCP clients) and in-product (AP assistant) — without weakening tenant isolation or RBAC.
+
+Status: implemented and covered by unit/integration tests plus live smokes (assistant over HTTP, MCP over real stdio JSON-RPC).
+
+Deliverables:
+
+- shared transport-agnostic tool layer (`app/services/invoice_tools.py`) calling the existing service layer only — tenant scoping and role rules are inherited, never reimplemented
+- stdio MCP server (`python -m app.mcp.server`, official `mcp` SDK) with seven tools, acting as a configured service user (`MCP_SERVICE_USER_EMAIL`)
+- structured JSON tool errors so client models can self-correct instead of crashing the session
+- `POST /api/v1/assistant/ask`: OpenAI Responses tool-calling loop (capped by `ASSISTANT_MAX_TOOL_CALLS`) running as the authenticated caller, returning the answer plus the ordered tool trace
+- deterministic keyless fallback answerer so the endpoint works in development and degrades gracefully on provider failure
+- the assistant is read-only by design — reprocess/approve stay behind explicit human actions in the cockpit
+- cockpit Assistant panel on the review screen: question input, answer with preserved line breaks, tool-trace chips, model name, and a one-click "Why is this invoice stuck?" quick question on the invoice drill-down
+
+Exit criteria:
+
+- an MCP client can search, inspect, and triage invoices with exactly the configured user's permissions.
+- the assistant answers operational questions grounded in tool results, with a visible trace.
+- no agent surface can mutate invoice state beyond what the acting user's role allows.
+
+Remaining hardening before Phase 10 is production-complete:
+
+- MCP over streamable HTTP with per-client authentication, if remote MCP clients are required
+- assistant token/cost accounting per organization if usage grows
+- live-provider exercise of the LLM tool-calling path (local verification used the deterministic fallback)

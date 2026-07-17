@@ -134,6 +134,15 @@ AI pipeline optimizations:
 | `EMBEDDING_REUSE_ENABLED` | Reuses stored embeddings for identical source text instead of a provider call. Defaults to true. |
 | `EXTRACTION_IMAGE_MAX_DIMENSION` | Max image dimension (px) sent to the extractor; larger uploads are downscaled. 0 disables. Defaults to 2048. |
 
+Agent layer:
+
+| Variable | Purpose |
+| --- | --- |
+| `ASSISTANT_ENABLED` | Enables the read-only AP assistant endpoint. Defaults to true. |
+| `ASSISTANT_MAX_TOOL_CALLS` | Tool-call budget per assistant question. Defaults to 6. |
+| `OPENAI_ASSISTANT_MODEL` | Assistant reasoning model; empty uses `OPENAI_EXTRACTION_MODEL`. |
+| `MCP_SERVICE_USER_EMAIL` | Platform user the stdio MCP server acts as; unset disables MCP tool calls. |
+
 Local-only ports:
 
 | Variable | Purpose |

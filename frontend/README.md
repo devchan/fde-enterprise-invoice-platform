@@ -43,6 +43,7 @@ The current cockpit workflows are:
 - validation explanations and suggested fixes under failed rules, with anomaly badges for `amount_anomaly`/`near_duplicate_similarity`
 - AI-assigned expense category badges on line items
 - "Auto-approved by AI" badge for invoices approved without a human review
+- Assistant panel on the review screen through `POST /api/v1/assistant/ask`: question input, answer with preserved line breaks, tool-trace chips, model name, and a one-click "Why is this invoice stuck?" quick question on the selected invoice
 - dashboard drill-down beyond the current cockpit panels remains pending
 
 ## Source layout

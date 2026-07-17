@@ -185,8 +185,10 @@ export function DataTable<TData>({
           </div>
         </div>
       ) : null}
-      <div className="rounded-md border">
-        <Table style={{ width: table.getTotalSize() }}>
+      <div className="max-h-[32rem] overflow-auto rounded-md border bg-card">
+        {/* Stretch to the container when columns fit; keep the resized total as
+            a minimum so wide tables scroll inside this panel, never the page. */}
+        <Table style={{ minWidth: table.getTotalSize(), width: "100%" }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -250,7 +252,7 @@ export function DataTable<TData>({
       </div>
       {canPaginate ? (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
+          <span className="num text-xs">
             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
           </span>
           <div className="flex gap-2">

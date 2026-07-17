@@ -22,3 +22,6 @@ crash.log
 crash.*.log
 frontend/test-results/
 frontend/playwright-report/
+# Playwright MCP scratch dir and ad-hoc verification screenshots
+.playwright-mcp/
+shot-*.jpeg

@@ -99,6 +99,22 @@ export type InvoiceNLSearchResponse = {
   invoices: InvoiceDetail[];
 };
 
+// One tool invocation the assistant made while answering; surfaced in the UI
+// so every answer is visibly grounded in the data it came from.
+export type AssistantToolCall = {
+  tool: string;
+  arguments: Record<string, unknown>;
+};
+
+export type AssistantAskResponse = {
+  question: string;
+  // May contain newlines (the fallback answerer formats lists); render with
+  // preserved line breaks.
+  answer: string;
+  model_name: string;
+  tool_calls: AssistantToolCall[];
+};
+
 export type SimilarInvoice = {
   invoice_id: string;
   invoice_number: string;

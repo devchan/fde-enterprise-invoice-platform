@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     # Downscale image uploads to this max dimension (px) before extraction to cut
     # vision-token cost; 0 disables preprocessing.
     extraction_image_max_dimension: int = 2048
+    # --- Agent layer ---
+    # AP assistant endpoint (POST /api/v1/assistant/ask): read-only tool-calling
+    # agent; falls back to a deterministic answerer without an OpenAI key.
+    assistant_enabled: bool = True
+    assistant_max_tool_calls: int = 6
+    # Empty means "use openai_extraction_model" for assistant reasoning.
+    openai_assistant_model: str = ""
+    # Platform user the stdio MCP server (python -m app.mcp.server) acts as;
+    # all MCP tool calls are scoped to this user's organization and role.
+    mcp_service_user_email: str = ""
     # Gemini is an alternative extraction provider (free tier). Its key being set
     # is what makes the "gemini" option selectable; empty means unavailable.
     gemini_api_key: str = ""

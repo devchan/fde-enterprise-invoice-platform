@@ -34,6 +34,7 @@ An item is checked only when it is implemented, tested, and usable in the runnin
 - [x] Frontend has schema-backed form validation pattern
 - [x] Frontend has a top-level error boundary
 - [x] Frontend has unit tests (Vitest + Testing Library)
+- [x] Assistant ask-box UI with tool-trace chips exists in the review screen
 - [x] Key UI surfaces carry accessibility roles/labels (nav, alerts, controls)
 
 Frontend scope note: the previous static cockpit has been retired. The React/Vite cockpit now covers the implemented backend workflows. Production readiness still requires line-item correction UX, deterministic approve/reject browser fixtures, richer dashboard analytics, and continued design-system hardening.

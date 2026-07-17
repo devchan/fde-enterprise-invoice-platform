@@ -41,12 +41,12 @@ export function UsersPanel({
     {
       accessorKey: "role",
       header: "Role",
-      cell: ({ row }) => <StatusPill label={row.original.role} tone="info" />,
+      cell: ({ row }) => <StatusPill label={row.original.role} tone="blueprint" />,
     },
     {
       accessorKey: "user_id",
       header: "User ID",
-      cell: ({ row }) => <span className="text-muted-foreground">{shortId(row.original.user_id)}</span>,
+      cell: ({ row }) => <span className="num text-xs text-muted-foreground">{shortId(row.original.user_id)}</span>,
     },
   ];
 
@@ -59,7 +59,7 @@ export function UsersPanel({
             <DataTable
               columns={columns}
               data={users}
-              emptyMessage="No users found."
+              emptyMessage="No users yet — create the first account with the form on the right."
               enableColumnVisibility
               enableExport={{ filename: "users.csv" }}
               getRowId={(user) => user.user_id}
@@ -132,7 +132,7 @@ function UserManagementRow({
             <p className="font-medium">{user.email}</p>
             <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{shortId(user.user_id)}</p>
           </div>
-          <StatusPill label={user.role} tone="info" />
+          <StatusPill label={user.role} tone="blueprint" />
         </div>
 
         <div className="mt-4 grid gap-4">

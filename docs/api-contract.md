@@ -317,6 +317,37 @@ Current behavior:
 - responds with the original query, the interpreted `filters` object, and the matching invoices in the detail-response shape
 - returns `invoice_search_query_invalid` for empty/untranslatable queries
 
+### `POST /api/v1/assistant/ask`
+
+Status: Implemented.
+
+Purpose: agentic question answering over the caller's invoices ("why is invoice X stuck?", "what failed today?").
+
+Current behavior:
+
+- requires a valid bearer token for a database-backed user
+- accepts `{"question": string}` (1–2000 characters)
+- runs a read-only tool-calling agent over the shared tool layer (search, invoice detail, similar invoices, audit trail, extraction accuracy, failed jobs); the agent deliberately has no write tools
+- every tool call runs as the authenticated user, so answers can never include data outside the caller's organization or role
+- tool-call count is capped by `ASSISTANT_MAX_TOOL_CALLS` (default 6)
+- responds with the answer, the model used, and the ordered tool-call trace so answers are traceable to their data
+- without an OpenAI key (or on provider failure) a deterministic fallback answers from the same tools
+- returns `assistant_request_invalid` for blank questions or when the assistant is disabled
+
+### MCP server (stdio, not HTTP)
+
+Status: Implemented.
+
+Purpose: expose the same tool layer to any Model Context Protocol client (Claude Desktop/Code, IDE agents, custom hosts).
+
+Current behavior:
+
+- started with `MCP_SERVICE_USER_EMAIL=<user> python -m app.mcp.server` (stdio transport)
+- tools: `search_invoices`, `get_invoice`, `find_similar_invoices`, `invoice_audit_trail`, `extraction_accuracy`, `list_failed_jobs`, `reprocess_job`
+- every call acts as the configured service user: organization scoping and role rules match the HTTP API exactly (`reprocess_job` requires admin/reviewer)
+- errors return as structured JSON (`permission_denied`, `invalid_request`, `tool_failed`) so the client model can self-correct
+- each tool call runs on a fresh database session, mirroring the API's per-request session pattern
+
 ### `GET /api/v1/extraction/accuracy`
 
 Status: Implemented.

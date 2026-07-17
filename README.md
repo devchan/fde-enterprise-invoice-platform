@@ -129,6 +129,10 @@ Login
 - Natural-language invoice search (`POST /api/v1/invoices/nl-search`) translating queries to tenant-scoped filters, with a deterministic no-key fallback parser
 - Optional model tiering (cheap extraction model first, escalate on low confidence) with aggregated cost accounting
 - Embedding reuse for identical source text and image downscaling before extraction to cut provider cost
+- Shared AI tool layer (`app/services/invoice_tools.py`) with tenant + role enforcement, consumed by both agent surfaces below
+- MCP server (`python -m app.mcp.server`) exposing search, detail, similar-invoice, audit-trail, accuracy, failed-job, and reprocess tools to any MCP client, acting as a configured service user
+- AP assistant endpoint (`POST /api/v1/assistant/ask`): read-only tool-calling agent that answers operational questions with a full tool trace, with a deterministic keyless fallback
+- Cockpit Assistant panel on the review screen with tool-trace chips and a one-click "Why is this invoice stuck?" quick question
 
 ## Local Development
 

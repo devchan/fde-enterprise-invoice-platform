@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, RefreshCw } from "lucide-react";
 import { DataTable } from "../../components/common/DataTable";
 import { PanelHeader } from "../../components/common/PanelHeader";
+import { StatusPill } from "../../components/common/StatusPill";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import type { ProcessingJob } from "../../domain/types";
@@ -25,21 +26,23 @@ export function FailedJobsPanel({
     {
       accessorKey: "job_type",
       header: "Job",
-      cell: ({ row }) => <span className="font-medium">{row.original.job_type}</span>,
+      cell: ({ row }) => <span className="font-mono text-xs font-medium">{row.original.job_type}</span>,
     },
     {
       accessorKey: "status",
       header: "Status",
+      cell: ({ row }) => <StatusPill label={row.original.status} />,
     },
     {
       accessorKey: "attempts",
       header: "Attempts",
+      cell: ({ row }) => <span className="num">{row.original.attempts}</span>,
     },
     {
       accessorKey: "last_error",
       header: "Last error",
       // Fall back to the invoice id when the job recorded no error message.
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.last_error || row.original.invoice_id}</span>,
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.last_error || row.original.invoice_id}</span>,
     },
     {
       id: "actions",
@@ -79,7 +82,7 @@ export function FailedJobsPanel({
             }
             columns={columns}
             data={jobs}
-            emptyMessage="No failed jobs."
+            emptyMessage="No failed jobs — the processing pipeline is healthy."
             enableColumnVisibility
             enableExport={{ filename: "failed-jobs.csv" }}
             enableRowSelection={canReprocess}

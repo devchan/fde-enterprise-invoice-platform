@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../config";
 import { ApiClient } from "./api-client";
+import { AssistantService } from "./assistant-service";
 import { AuditLogService } from "./audit-log-service";
 import { AuthService } from "./auth-service";
 import { InvoiceService } from "./invoice-service";
@@ -13,3 +14,4 @@ export const invoiceService = new InvoiceService(apiClient);
 export const processingJobService = new ProcessingJobService(apiClient);
 export const auditLogService = new AuditLogService(apiClient);
 export const userService = new UserService(apiClient);
+export const assistantService = new AssistantService(apiClient);

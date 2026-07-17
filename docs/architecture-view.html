@@ -444,6 +444,7 @@
       <div class="tag"><span>web</span> React 19 · Vite · TypeScript</div>
       <div class="tag"><span>data</span> PostgreSQL 16 + pgvector · Redis 7 · S3</div>
       <div class="tag"><span>ai</span> OpenAI · strict JSON schema · vector similarity · confidence-gated auto-approval</div>
+      <div class="tag"><span>agents</span> MCP server · tool-calling AP assistant</div>
       <div class="tag"><span>run</span> Docker · Kubernetes · GitHub Actions</div>
     </div>
   </div>
@@ -468,6 +469,7 @@
               <div class="tile"><div class="t">shadcn/ui</div><div class="d">Radix + Tailwind · light/dark</div></div>
               <div class="tile accent"><div class="t">Live updates</div><div class="d">SSE subscriber → cache invalidation</div></div>
               <div class="tile"><div class="t">Cmd/Ctrl+K palette</div><div class="d">RBAC-aware launcher</div></div>
+              <div class="tile accent"><div class="t">Assistant panel</div><div class="d">ask box · tool-trace chips · "why is this stuck?"</div></div>
               <div class="tile"><div class="t">Error boundary</div><div class="d">no white-screen</div></div>
             </div>
           </div>
@@ -494,6 +496,8 @@
               <div class="tile accent"><div class="t">Anomaly detection</div><div class="d">amount outliers · near-duplicates → demote to review</div></div>
               <div class="tile accent"><div class="t">Auto-approval</div><div class="d">confidence-gated · distinct audit action</div></div>
               <div class="tile accent"><div class="t">NL search</div><div class="d">LLM → filters only · tenant-scoped SQL</div></div>
+              <div class="tile accent"><div class="t">MCP server</div><div class="d">stdio · 7 tools · acts as a configured service user</div></div>
+              <div class="tile accent"><div class="t">AP assistant</div><div class="d">tool-calling agent · read-only · trace in response</div></div>
               <div class="tile accent"><div class="t">Realtime events</div><div class="d">GET /events/stream · SSE, tenant-scoped</div></div>
             </div>
           </div>
@@ -841,7 +845,7 @@
         <div class="card">
           <div class="c-head"><h3>Delivery &amp; Quality</h3><span class="k">8.7</span></div>
           <ul>
-            <li>Backend suite <code>137 / 137</code> — tenant isolation, auth, rate limits, workflows, AI pipeline</li>
+            <li>Backend suite <code>154 / 154</code> — tenant isolation, auth, rate limits, workflows, AI pipeline, agent layer</li>
             <li>Frontend Vitest unit tests + Playwright e2e happy path</li>
             <li>CI: ruff · tsc · vitest · blocking pip-audit · advisory npm audit · full Docker suite</li>
             <li>Append-only audit enforced; optimistic concurrency on review</li>
@@ -1225,6 +1229,7 @@
           <li><span><b>CSRF:</b> mitigated by <code>SameSite=Lax</code> cookies; dedicated double-submit CSRF tokens remain as defense-in-depth.</span></li>
           <li><span><b>Prompt injection</b> via invoice content: blast radius bounded by strict JSON schema + <code>extra=forbid</code>; few-shot examples come only from the org's own approved invoices; NL search produces filter JSON, never SQL. No explicit content sanitization yet.</span></li>
           <li><span><b>Auto-approval risk:</b> gated on full validation + anomaly pass + overall and per-field confidence (<code>0.92</code> bar), one-flag kill-switch (<code>AUTO_APPROVAL_ENABLED</code>), distinct audit action — but thresholds are not yet tuned on production invoice data.</span></li>
+          <li><span><b>Agent surfaces:</b> MCP + assistant share one tool layer that inherits tenant/RBAC scoping; the assistant is read-only by design. MCP runs stdio-only today — remote MCP would need per-client auth first.</span></li>
           <li><span><b>Secrets management:</b> env / K8s Secret today — no external vault or automated rotation.</span></li>
           <li><span><b>Edge protection:</b> no WAF / bot management in front of the ingress yet.</span></li>
         </ul>
@@ -1254,7 +1259,7 @@
       <div class="divider" style="margin:28px 0 22px"></div>
 
       <div class="evidence">
-        <div class="ev"><div class="n ok">137/137</div><div class="l">backend tests passing</div></div>
+        <div class="ev"><div class="n ok">154/154</div><div class="l">backend tests passing</div></div>
         <div class="ev"><div class="n ok">0</div><div class="l">known dependency CVEs (pip-audit)</div></div>
         <div class="ev"><div class="n ok">3/3</div><div class="l">CI jobs green on main</div></div>
         <div class="ev"><div class="n">5.8 → 9.0</div><div class="l">readiness trajectory</div></div>
