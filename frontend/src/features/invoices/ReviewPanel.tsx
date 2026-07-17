@@ -4,7 +4,6 @@ import { CheckCircle2, Download, Loader2, RefreshCw, Sparkles, X, XCircle } from
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { DataBlock } from "../../components/common/DataBlock";
 import { DataTable } from "../../components/common/DataTable";
-import { EmptyPanel } from "../../components/common/EmptyPanel";
 import { Field } from "../../components/common/Field";
 import { StatusPill } from "../../components/common/StatusPill";
 import { Badge } from "../../components/ui/badge";
@@ -86,7 +85,10 @@ export function ReviewPanel({
   const [pendingBulkReject, setPendingBulkReject] = useState<InvoiceDetail[] | null>(null);
   const [aiQuery, setAiQuery] = useState("");
 
-  // Defined inside the component so the invoice-number cell can close over onSelect.
+  // Defined inside the component so the invoice-number cell can close over
+  // onSelect. In the compact master rail (an invoice is open) we drop Amount
+  // and Created — the detail pane carries them — so the rail stays a clean
+  // identifier + status list instead of wrapping cramped columns.
   const invoiceColumns: ColumnDef<InvoiceDetail>[] = [
     {
       accessorKey: "invoice_number",
@@ -101,26 +103,52 @@ export function ReviewPanel({
         </button>
       ),
     },
+    ...(selectedInvoice
+      ? []
+      : [
+          {
+            accessorKey: "total_amount",
+            header: "Amount",
+            cell: ({ row }) => (
+              <span className="num tabular-nums">
+                {row.original.total_amount ? `${row.original.currency} ${row.original.total_amount}` : "—"}
+              </span>
+            ),
+          } as ColumnDef<InvoiceDetail>,
+        ]),
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => <StatusPill label={row.original.status} />,
     },
-    {
-      accessorKey: "created_at",
-      header: "Created",
-      cell: ({ row }) => <span className="num text-xs text-muted-foreground">{formatDate(row.original.created_at)}</span>,
-    },
+    ...(selectedInvoice
+      ? []
+      : [
+          {
+            accessorKey: "created_at",
+            header: "Created",
+            cell: ({ row }) => (
+              <span className="num text-xs text-muted-foreground">{formatDate(row.original.created_at)}</span>
+            ),
+          } as ColumnDef<InvoiceDetail>,
+        ]),
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-      {/* Left rail: the invoice list. The assistant now lives in a global
-          floating widget (bottom-right launcher) reachable from every screen. */}
+    // Master-detail: the list is full-width while browsing, and collapses to a
+    // compact rail beside the detail pane only once an invoice is opened — so
+    // the table isn't squeezed into a narrow column when there's nothing to
+    // show alongside it. (The assistant now lives in a global floating widget.)
+    <section className={`grid gap-4 ${selectedInvoice ? "xl:grid-cols-[minmax(360px,460px)_1fr]" : "grid-cols-1"}`}>
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Invoices</h2>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-semibold">Invoices</h2>
+              <span className="num rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {invoices.length}
+              </span>
+            </div>
             <Button aria-label="Refresh invoices" onClick={onRefresh} size="icon" title="Refresh invoices" type="button" variant="outline">
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -181,8 +209,9 @@ export function ReviewPanel({
               enableColumnVisibility
               enableExport={{ filename: "invoices.csv" }}
               enableRowSelection
-              // Narrow left-rail list: size to the column, don't force a scrollbar.
-              fitContainer
+              // Only fit-to-container in the narrow master rail (invoice open);
+              // full-width while browsing so columns breathe.
+              fitContainer={Boolean(selectedInvoice)}
               getRowId={(invoice) => invoice.invoice_id}
             />
             {selectedInvoice ? (
@@ -192,12 +221,7 @@ export function ReviewPanel({
         </CardContent>
       </Card>
 
-      {!selectedInvoice ? (
-        <EmptyPanel
-          hint="Pick an invoice from the list to see its extracted fields, validation results, and similar invoices."
-          title="No invoice selected"
-        />
-      ) : (
+      {selectedInvoice ? (
         <Card>
           <CardHeader>
             <nav aria-label="Breadcrumb" className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -298,7 +322,7 @@ export function ReviewPanel({
             />
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       <ConfirmDialog
         confirmLabel="Reject invoice"
