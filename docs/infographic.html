@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FDE Invoice Platform — System Infographic</title>
+<style>
+  :root {
+    --paper: #EEF0EA;
+    --paper-2: #E4E7DE;
+    --card: #F7F8F4;
+    --ink: #11201C;
+    --ink-soft: #3C4A44;
+    --ink-faint: #6E7A73;
+    --line: #CBD1C6;
+    --line-strong: #AEB6A8;
+    --accent: #136F63;
+    --accent-deep: #0C4A42;
+    --approved: #1B7A4B;
+    --review: #B47309;
+    --rejected: #B23A2E;
+    --stamp-fade: rgba(19,111,99,0.10);
+
+    --f-display: "Helvetica Neue", "Arial Nova", Arial, system-ui, sans-serif;
+    --f-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --f-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
+
+    --maxw: 1080px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0C1512;
+      --paper-2: #101B17;
+      --card: #14201B;
+      --ink: #E6EBE4;
+      --ink-soft: #AAB6AE;
+      --ink-faint: #7C8A82;
+      --line: #26332C;
+      --line-strong: #35473D;
+      --accent: #4FBFA9;
+      --accent-deep: #2A8676;
+      --approved: #45C07E;
+      --review: #E0A537;
+      --rejected: #E06A5C;
+      --stamp-fade: rgba(79,191,169,0.12);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #EEF0EA; --paper-2: #E4E7DE; --card: #F7F8F4;
+    --ink: #11201C; --ink-soft: #3C4A44; --ink-faint: #6E7A73;
+    --line: #CBD1C6; --line-strong: #AEB6A8;
+    --accent: #136F63; --accent-deep: #0C4A42;
+    --approved: #1B7A4B; --review: #B47309; --rejected: #B23A2E;
+    --stamp-fade: rgba(19,111,99,0.10);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0C1512; --paper-2: #101B17; --card: #14201B;
+    --ink: #E6EBE4; --ink-soft: #AAB6AE; --ink-faint: #7C8A82;
+    --line: #26332C; --line-strong: #35473D;
+    --accent: #4FBFA9; --accent-deep: #2A8676;
+    --approved: #45C07E; --review: #E0A537; --rejected: #E06A5C;
+    --stamp-fade: rgba(79,191,169,0.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 100% 34px, 34px 100%;
+    background-position: 0 -1px, -1px 0;
+  }
+  /* ledger grid only faint */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: var(--paper);
+    opacity: 0.86;
+    z-index: -1;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  .mono { font-family: var(--f-mono); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- HERO ---------- */
+  header.hero {
+    border-bottom: 2px solid var(--ink);
+    padding: 40px 0 30px;
+    position: relative;
+  }
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line-strong);
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: clamp(34px, 6.4vw, 68px);
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+  }
+  h1 .thin { color: var(--ink-faint); font-weight: 400; }
+  .lede {
+    max-width: 60ch;
+    font-size: clamp(15px, 1.6vw, 18px);
+    color: var(--ink-soft);
+    margin: 0 0 4px;
+  }
+  .stamp {
+    position: absolute;
+    top: 34px; right: 8px;
+    border: 3px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--f-mono);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 12px;
+    padding: 8px 12px 6px;
+    border-radius: 6px;
+    transform: rotate(-9deg);
+    opacity: 0.85;
+    text-align: center;
+    line-height: 1.25;
+  }
+  .stamp small { display: block; font-size: 9px; letter-spacing: 0.2em; color: var(--accent); opacity: 0.8; }
+  @media (max-width: 620px){ .stamp { display: none; } }
+
+  /* headline stat strip */
+  .statstrip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-strong);
+    border: 1px solid var(--line-strong);
+    margin-top: 30px;
+  }
+  .statstrip .cell {
+    background: var(--paper);
+    padding: 16px 16px 14px;
+  }
+  .statstrip .v {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: clamp(24px, 3.2vw, 34px);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .statstrip .v span { color: var(--accent); }
+  .statstrip .k {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 8px;
+  }
+  @media (max-width: 720px){ .statstrip { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---------- SECTION SCAFFOLD ---------- */
+  section { padding: 52px 0; border-bottom: 1px solid var(--line-strong); }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .sec-idx {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: clamp(22px, 3.4vw, 32px);
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .sec-sub { color: var(--ink-soft); font-size: 15px; margin: 6px 0 0; max-width: 62ch; }
+
+  /* ---------- PIPELINE ---------- */
+  .pipe {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 860px){ .pipe { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px){ .pipe { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 14px 15px 15px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .step .n {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+  }
+  .step .t {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+  }
+  .step .d { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+  .step .tag {
+    margin-top: auto;
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 8px;
+  }
+  .step[data-state="review"] { border-left-color: var(--review); }
+  .step[data-state="review"] .n { color: var(--review); }
+  .step[data-state="decision"] { border-left-color: var(--approved); }
+  .step[data-state="decision"] .n { color: var(--approved); }
+  .step[data-state="ai"] { border-left-color: var(--accent-deep); }
+
+  .branch {
+    display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;
+  }
+  .verdict {
+    flex: 1; min-width: 200px;
+    border: 2px solid;
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card);
+  }
+  .verdict .vs {
+    font-family: var(--f-mono); font-weight: 700; font-size: 12px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    border: 2px solid; border-radius: 4px; padding: 4px 8px;
+    transform: rotate(-4deg);
+    white-space: nowrap;
+  }
+  .verdict.ok { border-color: var(--approved); }
+  .verdict.ok .vs { color: var(--approved); border-color: var(--approved); }
+  .verdict.no { border-color: var(--rejected); }
+  .verdict.no .vs { color: var(--rejected); border-color: var(--rejected); }
+  .verdict .vd { font-size: 13px; color: var(--ink-soft); }
+
+  /* ---------- ARCHITECTURE ---------- */
+  .arch { display: flex; flex-direction: column; gap: 12px; }
+  .layer {
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--card);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+  @media (max-width: 640px){ .layer { grid-template-columns: 1fr; gap: 10px; } }
+  .layer .lname {
+    font-family: var(--f-mono);
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent);
+    line-height: 1.4;
+  }
+  .layer .lname b { display:block; font-family: var(--f-display); font-size: 17px; color: var(--ink); letter-spacing:-0.01em; text-transform:none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    background: var(--paper-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 4px 11px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .layer.spine { border-left: 3px solid var(--accent); }
+  .flowdot { text-align:center; color: var(--line-strong); font-size: 14px; line-height: 1; margin: -6px 0; }
+
+  /* ---------- AI GRID ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 820px){ .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px){ .grid { grid-template-columns: 1fr; } }
+  .feat {
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    padding: 15px 16px 16px;
+  }
+  .feat .ft {
+    font-family: var(--f-display); font-weight: 700; font-size: 15.5px;
+    letter-spacing: -0.01em; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feat .ft::before {
+    content: ""; width: 8px; height: 8px; border-radius: 2px;
+    background: var(--accent); transform: rotate(45deg); flex: none;
+  }
+  .feat .fd { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+
+  /* ---------- NUMBERS ---------- */
+  .bignums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-strong); border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+  @media (max-width: 640px){ .bignums { grid-template-columns: repeat(2, 1fr); } }
+  .bignums .bn { background: var(--card); padding: 20px 18px; }
+  .bignums .bnv { font-family: var(--f-display); font-weight: 800; font-size: clamp(28px,4vw,40px); letter-spacing: -0.02em; line-height: 1; }
+  .bignums .bnv small { font-size: 0.5em; color: var(--accent); font-weight: 700; margin-left: 3px; }
+  .bignums .bnk { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-top: 10px; }
+
+  footer {
+    padding: 34px 0 48px;
+    color: var(--ink-faint);
+    font-family: var(--f-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  footer .dot { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="stamp">Audit-Ready<small>every step logged</small></div>
+    <div class="eyebrow">Forward Deployed Engineering · System Overview</div>
+    <h1>Enterprise AI<br>Invoice Processing <span class="thin">Platform</span></h1>
+    <p class="lede">Upload an invoice, let AI extract structured data, validate it against business rules, route the uncertain cases to a human reviewer — and keep a complete, append-only audit trail of everything. Multi-tenant, role-scoped, and production-instrumented end to end.</p>
+
+    <div class="statstrip">
+      <div class="cell"><div class="v num">14.4<span>k</span></div><div class="k">Lines of code</div></div>
+      <div class="cell"><div class="v num">30</div><div class="k">REST endpoints</div></div>
+      <div class="cell"><div class="v num">9</div><div class="k">Stage pipeline</div></div>
+      <div class="cell"><div class="v num">100<span>%</span></div><div class="k">Audit coverage</div></div>
+    </div>
+  </header>
+
+  <!-- PIPELINE -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-idx">01</span>
+      <div>
+        <h2>The processing pipeline</h2>
+        <p class="sec-sub">A real ordered flow — each invoice moves through nine stages, from upload to a logged decision. Uncertain fields divert to human review; confident ones can auto-approve untouched.</p>
+      </div>
+    </div>
+
+    <div class="pipe">
+      <div class="step"><span class="n num">01</span><span class="t">Authenticated login</span><span class="d">HS256 bearer tokens; every request scoped to one tenant with role enforcement.</span><span class="tag">RBAC · Multi-tenant</span></div>
+      <div class="step"><span class="n num">02</span><span class="t">Secure upload</span><span class="d">PDF / JPEG / PNG only, rate-limited, SHA-256 checksum with a duplicate-upload guard.</span><span class="tag">Rate-limited · Deduped</span></div>
+      <div class="step"><span class="n num">03</span><span class="t">Store the file</span><span class="d">Local or S3-compatible storage, org/invoice-scoped keys, short-lived signed download URLs.</span><span class="tag">S3 · Signed URLs</span></div>
+      <div class="step"><span class="n num">04</span><span class="t">Queue the job</span><span class="d">A processing job is created at upload time and handed to a Redis-backed worker.</span><span class="tag">Redis queue</span></div>
+      <div class="step" data-state="ai"><span class="n num">05</span><span class="t">AI extraction</span><span class="d">OpenAI Responses API returns strict invoice JSON + line items, with per-field confidence and prompt versioning.</span><span class="tag">Structured output</span></div>
+      <div class="step" data-state="ai"><span class="n num">06</span><span class="t">Validate &amp; enrich</span><span class="d">Rule engine, anomaly detection (amount z-score + near-duplicate embeddings), plain-language fix suggestions.</span><span class="tag">Rules · Anomalies</span></div>
+      <div class="step" data-state="review"><span class="n num">07</span><span class="t">Human review</span><span class="d">Reviewer cockpit surfaces weak fields, similar invoices, and an AP assistant — correct and confirm.</span><span class="tag">Cockpit · Assistant</span></div>
+      <div class="step" data-state="decision"><span class="n num">08</span><span class="t">Approve or reject</span><span class="d">A confidence-gated path auto-approves clean invoices; the rest get a human verdict.</span><span class="tag">Touchless-capable</span></div>
+      <div class="step" data-state="decision"><span class="n num">09</span><span class="t">Audit log</span><span class="d">Every upload, correction, and decision is written to an append-only, tenant-scoped audit trail.</span><span class="tag">Append-only</span></div>
+    </div>
+
+    <div class="branch">
+      <div class="verdict ok"><span class="vs">Approved</span><span class="vd">Passed validation or a reviewer sign-off — recorded with actor, timestamp, and reason.</span></div>
+      <div class="verdict no"><span class="vs">Rejected</span><span class="vd">Sent back with a decision event; failed jobs can be inspected and manually reprocessed.</span></div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-idx">02</span>
+      <div>
+        <h2>System architecture</h2>
+        <p class="sec-sub">A FastAPI core with an async worker, sitting on Postgres + pgvector and Redis, fronted by a React cockpit and wrapped in full observability.</p>
+      </div>
+    </div>
+
+    <div class="arch">
+      <div class="layer spine">
+        <div class="lname">Client<b>Reviewer cockpit</b></div>
+        <div class="chips"><span class="chip">React + Vite</span><span class="chip">TanStack Query</span><span class="chip">TanStack Router</span><span class="chip">shadcn/ui · Radix</span><span class="chip">Tailwind</span><span class="chip">Light / dark</span><span class="chip">⌘K palette</span></div>
+      </div>
+      <div class="flowdot">▲ &nbsp; SSE live updates · REST &nbsp; ▼</div>
+      <div class="layer spine">
+        <div class="lname">API<b>FastAPI service</b></div>
+        <div class="chips"><span class="chip">Pydantic</span><span class="chip">30 endpoints</span><span class="chip">HS256 auth</span><span class="chip">Tenant + RBAC guards</span><span class="chip">SSE stream</span><span class="chip">X-Request-ID</span><span class="chip">MCP server</span></div>
+      </div>
+      <div class="flowdot">▲ &nbsp; enqueue · persist &nbsp; ▼</div>
+      <div class="layer spine">
+        <div class="lname">Compute<b>Async worker</b></div>
+        <div class="chips"><span class="chip">Redis queue</span><span class="chip">Bounded retries</span><span class="chip">OpenAI extraction</span><span class="chip">Model tiering</span><span class="chip">Embeddings</span><span class="chip">Cost accounting</span></div>
+      </div>
+      <div class="flowdot">▲ &nbsp; read · write &nbsp; ▼</div>
+      <div class="layer">
+        <div class="lname">Data<b>Persistence</b></div>
+        <div class="chips"><span class="chip">PostgreSQL</span><span class="chip">SQLAlchemy</span><span class="chip">Alembic · 6 migrations</span><span class="chip">pgvector HNSW</span><span class="chip">Redis pub/sub</span><span class="chip">S3 object store</span></div>
+      </div>
+      <div class="flowdot">◆ &nbsp; observed by &nbsp; ◆</div>
+      <div class="layer">
+        <div class="lname">Ops<b>Observability &amp; delivery</b></div>
+        <div class="chips"><span class="chip">OpenTelemetry</span><span class="chip">Prometheus /metrics</span><span class="chip">Grafana dashboard</span><span class="chip">Structured JSON logs</span><span class="chip">Docker Compose</span><span class="chip">GitHub Actions CI</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI CAPABILITIES -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-idx">03</span>
+      <div>
+        <h2>Where the AI earns its keep</h2>
+        <p class="sec-sub">Not just extraction — retrieval, similarity, anomaly detection, and two agent surfaces that share one tenant-safe tool layer.</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="feat"><div class="ft">Structured extraction</div><div class="fd">Strict JSON schema with per-field confidence and persisted prompt versions; image downscaling trims provider cost.</div></div>
+      <div class="feat"><div class="ft">Retrieval-augmented</div><div class="fd">Recent approved invoices from the same supplier are injected as few-shot examples to sharpen extraction.</div></div>
+      <div class="feat"><div class="ft">Vector similarity</div><div class="fd">pgvector cosine distance over an HNSW index powers tenant-scoped similar-invoice and near-duplicate detection.</div></div>
+      <div class="feat"><div class="ft">Anomaly detection</div><div class="fd">Supplier amount outliers via z-score over approved history, plus embedding near-duplicates, demote invoices back to review.</div></div>
+      <div class="feat"><div class="ft">Touchless approval</div><div class="fd">Confidence-gated auto-approval with its own audit action and Prometheus counter — clean invoices never touch a human.</div></div>
+      <div class="feat"><div class="ft">Model tiering</div><div class="fd">A cheap model runs first and escalates only on low confidence, with aggregated cost accounting per invoice.</div></div>
+      <div class="feat"><div class="ft">Natural-language search</div><div class="fd">Queries translate to tenant-scoped filters, with a deterministic no-key fallback parser for offline dev.</div></div>
+      <div class="feat"><div class="ft">AP assistant agent</div><div class="fd">A read-only tool-calling agent answers operational questions with a full tool trace — "why is this invoice stuck?"</div></div>
+      <div class="feat"><div class="ft">MCP server</div><div class="fd">Search, detail, similarity, audit, accuracy, and reprocess tools exposed to any MCP client as a scoped service user.</div></div>
+    </div>
+  </section>
+
+  <!-- BY THE NUMBERS -->
+  <section style="border-bottom:none;">
+    <div class="sec-head">
+      <span class="sec-idx">04</span>
+      <div>
+        <h2>By the numbers</h2>
+        <p class="sec-sub">Measured from the repository — backend, frontend, schema, and test surface.</p>
+      </div>
+    </div>
+
+    <div class="bignums">
+      <div class="bn"><div class="bnv num">8,957<small>LOC</small></div><div class="bnk">Backend · Python · 72 files</div></div>
+      <div class="bn"><div class="bnv num">5,492<small>LOC</small></div><div class="bnk">Frontend · TS/TSX · 85 files</div></div>
+      <div class="bn"><div class="bnv num">8</div><div class="bnk">Core data models</div></div>
+      <div class="bn"><div class="bnv num">30</div><div class="bnk">API endpoints · 16 GET / 13 POST / 1 PATCH</div></div>
+      <div class="bn"><div class="bnv num">6</div><div class="bnk">Alembic migrations</div></div>
+      <div class="bn"><div class="bnv num">19</div><div class="bnk">Test suites · unit + Docker integration</div></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>FDE Enterprise Invoice Platform <span class="dot">·</span> production-grade reference build</span>
+    <span>FastAPI <span class="dot">·</span> PostgreSQL + pgvector <span class="dot">·</span> Redis <span class="dot">·</span> React <span class="dot">·</span> OpenAI</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
