@@ -1,0 +1,109 @@
+#cloud-config
+# =============================================================================
+# Cheapest-path bootstrap for the FDE Invoice Platform on a single AWS box.
+# Pass this file as EC2 "user data" (or Lightsail launch script) when launching
+# an Ubuntu 24.04 LTS t3.micro (free-tier eligible). It:
+#   1. adds a 3 GB swapfile so a 1 GB box survives Postgres + Python memory spikes
+#   2. installs Docker + the compose plugin
+#   3. fetches this repo (for docker-compose.micro.yml) into /opt/invoice-platform
+#   4. logs in to your image registry and pulls the backend image
+#   5. starts the stack via a systemd unit so it survives reboots
+#
+# BEFORE LAUNCHING, replace every __PLACEHOLDER__ below (or template this file in CI).
+# Works on Ubuntu; for Amazon Linux 2023 see the note in README.md.
+# =============================================================================
+
+package_update: true
+package_upgrade: false
+
+write_files:
+  # ---- systemd unit that owns the compose stack (start on boot, restart on fail) ----
+  - path: /etc/systemd/system/invoice-platform.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=FDE Invoice Platform (docker compose)
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/invoice-platform/infra/aws-micro
+      # Shared proxy network must exist before either project starts (|| true = idempotent).
+      ExecStartPre=/bin/sh -c '/usr/bin/docker network create edge || true'
+      # Pull latest images then bring the stack up; --wait blocks until healthy.
+      # For the 2 GB tier, change docker-compose.micro.yml -> docker-compose.small.yml here and below.
+      ExecStartPre=/usr/bin/docker compose --env-file /opt/invoice-platform/.env -f docker-compose.micro.yml pull
+      ExecStart=/usr/bin/docker compose --env-file /opt/invoice-platform/.env -f docker-compose.micro.yml up -d --wait
+      # Start the shared Caddy proxy (auto-HTTPS) as its own project.
+      ExecStart=/usr/bin/docker compose --env-file /opt/invoice-platform/.env -f docker-compose.caddy.yml up -d
+      ExecStop=/usr/bin/docker compose --env-file /opt/invoice-platform/.env -f docker-compose.caddy.yml down
+      ExecStop=/usr/bin/docker compose --env-file /opt/invoice-platform/.env -f docker-compose.micro.yml down
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ---- runtime env; secrets get injected in runcmd (see SSM note in README) --------
+  - path: /opt/invoice-platform/.env
+    permissions: "0600"
+    content: |
+      BACKEND_IMAGE=__REGISTRY__/invoice-platform-backend:__IMAGE_TAG__
+      APP_ENV=production
+      POSTGRES_DB=invoice_platform
+      POSTGRES_USER=invoice_user
+      POSTGRES_PASSWORD=__DB_PASSWORD__
+      DATABASE_URL=postgresql+psycopg://invoice_user:__DB_PASSWORD__@postgres:5432/invoice_platform
+      REDIS_URL=redis://redis:6379/0
+      JWT_SECRET=__JWT_SECRET__
+      API_DOMAIN=__API_DOMAIN__
+      ACME_EMAIL=__ACME_EMAIL__
+      CORS_ALLOWED_ORIGINS=https://__CLOUDFRONT_DOMAIN__
+      COOKIE_SECURE=true
+      COOKIE_SAMESITE=lax
+      OPENAI_API_KEY=__OPENAI_API_KEY__
+      OPENAI_EXTRACTION_MODEL=gpt-4.1
+      GEMINI_API_KEY=
+      GEMINI_EXTRACTION_MODEL=gemini-flash-latest
+      OBJECT_STORAGE_BACKEND=local
+      OBJECT_STORAGE_BUCKET=invoice-platform
+      OBJECT_STORAGE_REGION=us-east-1
+
+runcmd:
+  # --- 1. Swap: a 1 GB box cannot hold this stack without it -------------------
+  - |
+    if [ ! -f /swapfile ]; then
+      fallocate -l 3G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=3072
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      # Prefer RAM but allow swap under pressure; shrink dirty ratios for a small box.
+      sysctl -w vm.swappiness=20
+      echo 'vm.swappiness=20' >> /etc/sysctl.conf
+    fi
+
+  # --- 2. Docker + compose plugin (official convenience script covers Ubuntu) --
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu || true
+
+  # --- 3. Source code (only the compose file is needed at runtime) -------------
+  # Public repo: a plain clone works. Private repo: bake a read-only deploy token
+  # into the URL, or replace this with an `aws s3 cp` of the compose file.
+  - git clone --depth 1 __GIT_REPO_URL__ /opt/invoice-platform || (cd /opt/invoice-platform && git pull)
+
+  # --- 4. Registry login so the box can pull the backend image ----------------
+  # ECR example (needs an instance role with ecr:GetAuthorizationToken + pull perms):
+  #   aws ecr get-login-password --region us-east-1 \
+  #     | docker login --username AWS --password-stdin __REGISTRY__
+  # GHCR / Docker Hub example (token via SSM):
+  #   docker login __REGISTRY__ -u __REGISTRY_USER__ -p "$REGISTRY_TOKEN"
+  - __REGISTRY_LOGIN_COMMAND__
+
+  # --- 5. Launch and enable on boot -------------------------------------------
+  - systemctl daemon-reload
+  - systemctl enable --now invoice-platform.service
+
+final_message: "Invoice platform bootstrap finished after $UPTIME seconds. API on :8000."

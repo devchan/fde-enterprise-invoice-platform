@@ -1,0 +1,44 @@
+# Shared Caddy reverse proxy for the single-box mini-platform.
+#
+# Runs as its OWN compose project so it outlives any single app and can front
+# multiple repos. It attaches to an external `edge` network that every app it
+# routes to also joins. Create that network once before first start:
+#     docker network create edge
+#
+# Auto-HTTPS: Caddy obtains + renews Let's Encrypt certs for the domains in the
+# Caddyfile. This is what fixes the earlier "API only on plain HTTP :8000" gap.
+#
+# Config comes from the .env file next to this file (API_DOMAIN, ACME_EMAIL).
+#     docker compose --env-file .env -f docker-compose.caddy.yml up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 96m
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC)
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data     # issued certs + ACME account — MUST persist
+      - caddy_config:/config
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

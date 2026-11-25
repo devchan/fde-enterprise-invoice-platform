@@ -1,0 +1,33 @@
+# Caddy routing for the single-box "mini platform".
+#
+# Caddy terminates HTTPS (auto Let's Encrypt certs) on :443 and reverse-proxies
+# to app containers by their alias on the shared `edge` Docker network. Each app
+# gets one site block. Adding a new repo = add a block here + join it to `edge`.
+#
+# Requirements for the certs to issue:
+#   - each domain's DNS A record points at this box's public IP
+#   - ports 80 and 443 are open to the internet in the security group
+
+{
+	# ACME account email for Let's Encrypt expiry notices. Set via .env.
+	email {$ACME_EMAIL}
+}
+
+# --- This app: the invoice platform API --------------------------------------
+# The frontend is served by S3 + CloudFront; Caddy only fronts the API here.
+{$API_DOMAIN} {
+	# `invoices-backend` is the backend's network alias on `edge` (see compose).
+	reverse_proxy invoices-backend:8000
+
+	encode gzip zstd
+	header -Server
+}
+
+# --- Add more repos below (one block per app) --------------------------------
+# Example: another dockerized app whose container joins the `edge` network with
+# the alias `app2-web` and listens on 3000.
+#
+# app2.example.com {
+# 	reverse_proxy app2-web:3000
+# 	encode gzip zstd
+# }

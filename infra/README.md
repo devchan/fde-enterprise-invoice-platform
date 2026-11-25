@@ -87,3 +87,10 @@ self-contained single-replica staging stack:
 docker compose --env-file .env.staging.example -f docker-compose.staging.yml up -d
 ```
 
+
+### AWS single box (`aws-micro/`)
+
+Cheapest AWS path: one EC2 box running backend, worker, Postgres and Redis in
+containers, Caddy for HTTPS, and the frontend on S3 + CloudFront. See
+`aws-micro/README.md`. For choosing between this and EKS, see
+[`docs/aws-hosting-handover.md`](../docs/aws-hosting-handover.md).

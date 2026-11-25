@@ -1,0 +1,172 @@
+# 2 GB single-box compose — the ~$12/mo tier (Lightsail 2 GB or EC2 t3.small).
+#
+# Same architecture as docker-compose.micro.yml (backend + worker + Postgres +
+# Redis on one box; frontend on S3/CloudFront). The ONLY differences are relaxed
+# memory ceilings and larger Postgres buffers, because 2 GB RAM removes the
+# memory pressure that forced the tiny caps on the 1 GB micro box:
+#   - backend   420m -> 768m
+#   - worker    320m -> 512m
+#   - postgres  300m -> 640m  (shared_buffers 96MB -> 512MB)
+#   - redis     128m -> 256m  (maxmemory 96mb -> 192mb)
+# Swap is still recommended (cloud-init adds it) but is now a safety net, not
+# load-bearing. Still single-instance = no HA.
+#
+# All secrets/config come from the .env file next to this file (see .env.micro.example).
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: "false"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EXTRACTION_MODEL: ${OPENAI_EXTRACTION_MODEL:-gpt-4.1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_EXTRACTION_MODEL: ${GEMINI_EXTRACTION_MODEL:-gemini-flash-latest}
+      # Keep AI spend down: bias toward auto-approval + reuse so fewer/cheaper LLM calls.
+      AUTO_APPROVAL_ENABLED: ${AUTO_APPROVAL_ENABLED:-true}
+      EMBEDDING_REUSE_ENABLED: ${EMBEDDING_REUSE_ENABLED:-true}
+      EXTRACTION_TIERING_ENABLED: ${EXTRACTION_TIERING_ENABLED:-true}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-invoice-platform}
+      OBJECT_STORAGE_BACKEND: ${OBJECT_STORAGE_BACKEND:-local}
+      OBJECT_STORAGE_LOCAL_PATH: /app/.local-storage
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      # Single-box convenience: apply DB migrations automatically on boot.
+      RUN_MIGRATIONS_ON_START: "true"
+    # Bind to loopback only: the public entrypoint is Caddy (HTTPS over `edge`).
+    # This port is reachable just on the box itself — e.g. via an SSH tunnel for
+    # debugging (`ssh -L 8000:localhost:8000 <box>`), never from the internet.
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - invoice_storage:/app/.local-storage
+    entrypoint: ["sh", "/app/infra/docker/backend-entrypoint.sh"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "/app/backend"]
+    # `default` keeps backend reachable by worker/postgres/redis; `edge` (with the
+    # `invoices-backend` alias) lets the shared Caddy proxy route HTTPS to it.
+    # `edge` is optional: it only needs to exist if you run docker-compose.caddy.yml.
+    networks:
+      default: {}
+      edge:
+        aliases:
+          - invoices-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: "false"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EXTRACTION_MODEL: ${OPENAI_EXTRACTION_MODEL:-gpt-4.1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_EXTRACTION_MODEL: ${GEMINI_EXTRACTION_MODEL:-gemini-flash-latest}
+      AUTO_APPROVAL_ENABLED: ${AUTO_APPROVAL_ENABLED:-true}
+      EMBEDDING_REUSE_ENABLED: ${EMBEDDING_REUSE_ENABLED:-true}
+      EXTRACTION_TIERING_ENABLED: ${EXTRACTION_TIERING_ENABLED:-true}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-invoice-platform}
+      OBJECT_STORAGE_BACKEND: ${OBJECT_STORAGE_BACKEND:-local}
+      OBJECT_STORAGE_LOCAL_PATH: /app/.local-storage
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      # The worker must never run migrations; the backend owns that.
+      RUN_MIGRATIONS_ON_START: "false"
+      PROCESSING_QUEUE_NAME: ${PROCESSING_QUEUE_NAME:-invoice_processing_jobs}
+      WORKER_POLL_TIMEOUT_SECONDS: ${WORKER_POLL_TIMEOUT_SECONDS:-5}
+      WORKER_SLEEP_SECONDS: ${WORKER_SLEEP_SECONDS:-1}
+      PROCESSING_JOB_MAX_ATTEMPTS: ${PROCESSING_JOB_MAX_ATTEMPTS:-3}
+    volumes:
+      - invoice_storage:/app/.local-storage
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["python", "-m", "app.worker"]
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    mem_limit: 640m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-invoice_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-invoice_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    # 2 GB box: give Postgres real buffers so pgvector queries and joins stay in RAM.
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "max_connections=80"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=96MB"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-invoice_user} -d ${POSTGRES_DB:-invoice_platform}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    mem_limit: 256m
+    # noeviction (not LRU) because Redis is the JOB QUEUE here — evicting keys would
+    # silently drop queued invoices. appendonly keeps the queue durable across reboots.
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "192mb"
+      - "--maxmemory-policy"
+      - "noeviction"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  # Created automatically per project; here so backend can also join `edge`.
+  default: {}
+  # Shared cross-project proxy network. Create once: `docker network create edge`.
+  # external:true means compose won't try to create/destroy it.
+  edge:
+    external: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  invoice_storage:

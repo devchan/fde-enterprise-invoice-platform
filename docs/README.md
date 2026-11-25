@@ -14,6 +14,7 @@ This documentation describes an enterprise-grade AI invoice processing platform 
 - [Operational Runbook](operational-runbook.md)
 - [Monitoring](monitoring.md)
 - [Deployment Guide](deployment-guide.md)
+- [AWS Hosting Handover](aws-hosting-handover.md) — how DevOps hosts this on AWS (EKS or single EC2 box)
 - [Engineering Standards](engineering-standards.md)
 - [Production Readiness Checklist](production-readiness-checklist.md)
 - [Architecture View](architecture-view.html) — end-to-end FDE view (system, data model, sequence, topology, readiness). Self-contained HTML; open in a browser.
