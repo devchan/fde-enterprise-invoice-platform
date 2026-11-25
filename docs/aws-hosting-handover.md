@@ -21,7 +21,7 @@ is in [`deployment-guide.md`](deployment-guide.md). Incident handling is in
 | Invoice files | S3 | Local EBS disk (S3 optional) |
 | Frontend | Container behind the same ingress | S3 + CloudFront |
 | High availability | Yes (multi-replica, HPA on backend) | No |
-| Rough cost | Cluster + RDS + ElastiCache; size to load | ~$5/mo (t3.micro) – ~$12–18/mo (2 GB box) |
+| Rough cost | ~$450/mo prod + staging (see section 5) | ~$5/mo (t3.micro) – ~$12–18/mo (2 GB box) |
 | Validated so far | On a local `kind` cluster only (`scripts/kind-deploy.sh`) | Compose stack run locally; not yet run on EC2 |
 
 If your team does not already run EKS, **ECS Fargate** with the same RDS,
@@ -177,7 +177,75 @@ Test login and token refresh before handing the URL to users.
 
 ---
 
-## 5. Not built yet
+## 5. Cost and credits
+
+We have **US$10,000 in AWS credits**. At the sizing below, Option A (production +
+staging) runs about **$450/month**, so the credits last roughly **22 months**, or
+about 27 months with the Single-AZ and 2-node choices in 5.3, unless they expire first.
+
+> **Prices are estimates.** They are us-east-1 on-demand list prices as of late
+> 2026 and were **not** confirmed against the AWS Pricing API or this account.
+> Re-check them in the [AWS Pricing Calculator](https://calculator.aws/) for your
+> chosen region before committing. A month is counted as 730 hours.
+
+### 5.1 Option A: production (EKS)
+
+| Item | Sizing | Est. $/month |
+|---|---|---|
+| EKS control plane | 1 cluster, $0.10/hr | 73 |
+| Worker nodes | 3 × t4g.medium (Graviton) + 20 GB gp3 each | 78 |
+| RDS PostgreSQL 16 | db.t4g.medium, **Multi-AZ**, 50 GB gp3 | 107 |
+| ElastiCache Redis | cache.t4g.small, 1 node | 23 |
+| Application Load Balancer | 1 ALB + light traffic | 25 |
+| NAT gateway | 1 gateway + light data | 38 |
+| Public IPv4 addresses | ~4 × $3.65 | 15 |
+| S3, ECR, CloudWatch Logs, Secrets Manager | low volume | 20–40 |
+| **Production total** | | **~$380–400** |
+
+### 5.2 Staging, on the same cluster
+
+Run staging as a separate namespace (`invoice-platform-staging`) in the
+production cluster, so it shares the control plane, load balancer and NAT.
+
+| Item | Sizing | Est. $/month |
+|---|---|---|
+| Extra worker node | 1 × t4g.medium | 25 |
+| RDS PostgreSQL 16 | db.t4g.micro, Single-AZ, 20 GB | 14 |
+| ElastiCache Redis | cache.t4g.micro | 12 |
+| Logs, storage, secrets | | ~10 |
+| **Staging total** | | **~$60** |
+
+A separate staging cluster adds roughly $73 (control plane) + nodes + its own
+NAT gateway and load balancer, about $150+/month more.
+
+### 5.3 Making the credits last
+
+| Choice | Saving / month | Trade-off |
+|---|---|---|
+| Graviton (`t4g`) instead of `t3` | ~$6 per node | **Images must be built for arm64**: `docker buildx build --platform linux/arm64` (or multi-arch `linux/amd64,linux/arm64`). The current Dockerfiles build for the host architecture only. |
+| Single-AZ RDS for production | ~$53 | Database downtime during an AZ failure or maintenance |
+| 2 production nodes instead of 3 | ~$26 | Less headroom; the HPA can't scale backend past what fits |
+| Scale staging to zero outside working hours | ~$15–20 | Staging unavailable overnight |
+| Option B (single EC2 box) instead | — | ~$20/month total for a t3.small, but no HA; demo use only |
+
+### 5.4 Credits: check before relying on them
+
+1. **Expiry date.** Credits normally expire (often 12–24 months after issue);
+   unused balance is lost. See Billing and Cost Management → Credits.
+2. **Eligible services.** Credits usually exclude AWS Marketplace purchases and
+   some support plans. Confirm EKS, RDS, ElastiCache and data transfer are covered.
+3. **Not covered by AWS credits:** OpenAI / Gemini API usage for invoice
+   extraction. That is billed by the provider and is often the largest variable
+   cost; see "AI extraction cost spike" in `operational-runbook.md`.
+4. **Budget alerts.** Create an AWS Budget on *gross* cost (before credits) with
+   alerts at 50/80/100% of the planned monthly spend, plus a Cost Anomaly
+   Detection monitor. Otherwise the bill shows $0 until the credits run out.
+5. **Tagging.** Tag every resource `app=invoice-platform` and `env=production|staging`
+   and activate those as cost allocation tags so spend can be split per environment.
+
+---
+
+## 6. Not built yet
 
 | Gap | Impact | Owner action |
 |---|---|---|
@@ -188,7 +256,7 @@ Test login and token refresh before handing the URL to users.
 | Monitoring not wired | `infra/monitoring/grafana/` has a dashboard; nothing scrapes `/metrics` | Prometheus (or Amazon Managed Prometheus) scraping the backend `/metrics` |
 | Backups / restore drill | Required by `production-readiness-checklist.md` | RDS automated backups + S3 versioning + one restore drill in staging |
 
-## 6. What has been verified
+## 7. What has been verified
 
 - `infra/aws-micro/docker-compose.micro.yml` was run locally (2026-11-25) with a
   locally built backend image: migrations applied through `20260717_0006`,
@@ -199,7 +267,7 @@ Test login and token refresh before handing the URL to users.
   (`scripts/kind-deploy.sh`), not on EKS.
 - Nothing in this document has been run against a real AWS account yet.
 
-## 7. Questions to bring to the app team
+## 8. Questions to bring to the app team
 
 - Which AI provider(s) and models to use in production, and the monthly spend cap.
 - Expected invoice volume (drives worker replica count and RDS size).
